@@ -72,7 +72,7 @@ async def play():
 
             # check-nothing
             newpos = getnewpos(own_player["x"], own_player["y"], own_player["speed"], own_player["direction"])
-            if ([state["width"] - 1, state["height"] - 1] >= newpos) & (newpos >= [0, 0]):  # Prüfe ob er das Spielfeld verlassen würde
+            if ([state["width"] - 1, state["height"] - 1] >= newpos) & (newpos >= [0, 0]):  # Prüfe, ob er das Spielfeld verlassen würde
                 newx = newpos[0]
                 newy = newpos[1]
                 if state["cells"][newy][newx] == 0:  # Prüfe ob Schlange an der neuen Stelle ist
@@ -101,7 +101,7 @@ async def play():
             action_json = json.dumps({"action": action})
             await websocket.send(action_json)
 
-
+#Hier mal ne line reingeschoben um zu testen
 asyncio.get_event_loop().run_until_complete(play())
 
 
