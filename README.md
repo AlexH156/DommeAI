@@ -1,2 +1,2 @@
 # DommeAI
-Basic readme
+Hier das GitHub Verzeichnis der DommeAI!
