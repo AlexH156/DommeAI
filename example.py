@@ -36,8 +36,15 @@ def getnewpos(x, y, s, dir):  # bestimme neue Position
         return [y, x + s]
 
 async def play():
-    url = os.environ["URL"]
-    key = os.environ["KEY"]
+    filename = 'apikey.txt'
+    urlname = 'apiurl.txt'
+
+
+    #url = os.environ["URL"]
+    #key = os.environ["KEY"]
+    #url = open(urlname,"r").read().strip()
+    url = "wss://msoll.de/spe_ed"
+    key = open(filename, "r").read().strip()
 
     async with websockets.connect(f"{url}?key={key}") as websocket:
         print("Waiting for initial state...", flush=True)
