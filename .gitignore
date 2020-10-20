@@ -1,5 +1,5 @@
-apikey
-apiurl
+apikey.txt
+apiurl.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
