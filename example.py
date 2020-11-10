@@ -55,6 +55,11 @@ async def play():
             print("<", state)
             own_player = state["players"][str(state["you"])]
             if not state["running"] or not own_player["active"]:
+                if not own_player["active"]:
+                    erfolg = "verloren"
+                else:
+                    erfolg = "gewonnen"
+                print(erfolg)
                 break
             valid_actions = []
             counter += 1
@@ -174,6 +179,10 @@ async def play():
                     else:
                         valid_actions += ["turn_right"]
 
+            if not valid_actions:
+                erfolg = "verloren"
+                print(erfolg)
+                break                        
             action = random.choice(valid_actions)
             print(">", action)
             action_json = json.dumps({"action": action})
