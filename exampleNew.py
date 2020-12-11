@@ -199,6 +199,7 @@ async def play():
         counter = 0
         choices_actions = ["speed_up", "slow_down", "change_nothing", "turn_left", "turn_right"]
         wert = 1
+        depth = 6
 
         while True:
             state_json = await websocket.recv()
@@ -241,7 +242,7 @@ async def play():
                         if hilfe == 0:
                             choices[0] = wert + checkchoices(newx,newy, own_player["direction"],
                                                              board, own_player["speed"] + 1, state["width"],
-                                                             state["height"], wert / 2, 5, counter + 1)
+                                                             state["height"], wert / 2, depth, counter + 1)
 
             # check-slowdown
             board = deepcopy(state["cells"])
@@ -268,11 +269,11 @@ async def play():
                             if hilfe == 0:
                                 choices[1] = wert + checkchoices(newx,newy, own_player["direction"], board,
                                                                  own_player["speed"] - 1, state["width"],
-                                                                 state["height"], wert / 2, 5, counter + 1)
+                                                                 state["height"], wert / 2, depth, counter + 1)
                         else:
                             choices[1] = wert + checkchoices(newx,newy, own_player["direction"],
                                                              board, own_player["speed"] - 1, state["width"],
-                                                             state["height"], wert / 2, 5, counter + 1)
+                                                             state["height"], wert / 2, depth, counter + 1)
 
             # check-nothing
             board = deepcopy(state["cells"])
@@ -295,9 +296,9 @@ async def play():
                                 #break
                             board[newyy][newxx] = 1
                         if hilfe == 0:
-                            choices[2] = wert + checkchoices(newx,newy, own_player["direction"], board, own_player["speed"], state["width"], state["height"], wert / 2, 5, counter + 1)
+                            choices[2] = wert + checkchoices(newx,newy, own_player["direction"], board, own_player["speed"], state["width"], state["height"], wert / 2, depth, counter + 1)
                     else:
-                        choices[2] = wert + checkchoices(newx,newy, own_player["direction"], board, own_player["speed"], state["width"], state["height"], wert / 2, 5, counter + 1)
+                        choices[2] = wert + checkchoices(newx,newy, own_player["direction"], board, own_player["speed"], state["width"], state["height"], wert / 2, depth, counter + 1)
 
             # check-left
             board = deepcopy(state["cells"])
@@ -324,11 +325,11 @@ async def play():
                         if hilfe == 0:
                             choices[3] = wert + checkchoices(newx,newy, newdirection, board,
                                                              own_player["speed"], state["width"], state["height"],
-                                                             wert / 2, 5, counter + 1)
+                                                             wert / 2, depth, counter + 1)
                     else:
                         choices[3] = wert + checkchoices(newx,newy, newdirection, board,
                                                          own_player["speed"], state["width"], state["height"], wert / 2,
-                                                         5, counter + 1)
+                                                         depth, counter + 1)
 
             # check-right
             board = deepcopy(state["cells"])
@@ -355,11 +356,11 @@ async def play():
                         if hilfe == 0:
                             choices[4] = wert + checkchoices(newx,newy, newdirection, board,
                                                              own_player["speed"], state["width"], state["height"],
-                                                             wert / 2, 5, counter + 1)
+                                                             wert / 2, depth, counter + 1)
                     else:
                         choices[4] = wert + checkchoices(newx,newy, newdirection, board,
                                                          own_player["speed"], state["width"], state["height"], wert / 2,
-                                                         5, counter + 1)
+                                                         depth, counter + 1)
             #time.sleep(4)
             print(choices)
             best = max(choices)
