@@ -1,27 +1,29 @@
 #!/usr/bin/env python3
 
 import asyncio
+from datetime import datetime
 import json
 import os
 import random
 import websockets
 
+
 def getnewdirection(dir, change):  # bestimme neue Richtung nach Wechsel
-    if (dir == "up") & (change == "left"):
+    if (dir == "up") and (change == "left"):
         return "left"
-    elif (dir == "down") & (change == "left"):
+    elif (dir == "down") and (change == "left"):
         return "right"
-    elif (dir == "right") & (change == "left"):
+    elif (dir == "right") and (change == "left"):
         return "up"
-    elif (dir == "left") & (change == "left"):
+    elif (dir == "left") and (change == "left"):
         return "down"
-    elif (dir == "down") & (change == "right"):
+    elif (dir == "down") and (change == "right"):
         return "left"
-    elif (dir == "up") & (change == "right"):
+    elif (dir == "up") and (change == "right"):
         return "right"
-    elif (dir == "left") & (change == "right"):
+    elif (dir == "left") and (change == "right"):
         return "up"
-    elif (dir == "right") & (change == "right"):
+    elif (dir == "right") and (change == "right"):
         return "down"
 
 
@@ -53,6 +55,7 @@ async def play():
             state_json = await websocket.recv()
             state = json.loads(state_json)
             print("<", state)
+            print(datetime.now())
             own_player = state["players"][str(state["you"])]
             if not state["running"] or not own_player["active"]:
                 if not own_player["active"]:
@@ -69,7 +72,7 @@ async def play():
                 newpos = getnewpos(own_player["x"], own_player["y"], own_player["speed"]+1, own_player["direction"])
                 newx = newpos[1]
                 newy = newpos[0]
-                if ([state["height"] - 1, state["width"] - 1] >= newpos) & (newx >= 0) & (newy >= 0):  # Prüfe ob er das Spielfeld verlassen würde
+                if state["height"] - 1 >= newy and state["width"] - 1 >= newx and (newx >= 0) and (newy >= 0):  # Prüfe ob er das Spielfeld verlassen würde
                     if state["cells"][newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
                         hilfe = 0
                         for i in range(1,own_player["speed"]+1):
@@ -90,7 +93,7 @@ async def play():
                 newpos = getnewpos(own_player["x"], own_player["y"], own_player["speed"]-1, own_player["direction"])
                 newx = newpos[1]
                 newy = newpos[0]
-                if ([state["height"] - 1, state["width"] - 1] >= newpos) & (newx >= 0) & (newy >= 0):  # Prüfe ob er das Spielfeld verlassen würde
+                if state["height"] - 1 >= newy and state["width"] - 1 >= newx and (newx >= 0) and (newy >= 0):  # Prüfe ob er das Spielfeld verlassen würde
                     if state["cells"][newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
                         if own_player["speed"] > 2:
                             hilfe = 0
@@ -112,7 +115,7 @@ async def play():
             newpos = getnewpos(own_player["x"], own_player["y"], own_player["speed"], own_player["direction"])
             newx = newpos[1]
             newy = newpos[0]
-            if ([state["height"] - 1, state["width"] - 1] >= newpos) & (newx >= 0) & (
+            if state["height"] - 1 >= newy and state["width"] - 1 >= newx and (newx >= 0) and (
                     newy >= 0):  # Prüfe ob er das Spielfeld verlassen würde
                 if state["cells"][newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
                     if own_player["speed"] > 1:
@@ -136,7 +139,7 @@ async def play():
                                getnewdirection(own_player["direction"], "left"))
             newx = newpos[1]
             newy = newpos[0]
-            if ([state["height"] - 1, state["width"] - 1] >= newpos) & (newx >= 0) & (
+            if state["height"] - 1 >= newy and state["width"] - 1 >= newx and (newx >= 0) and (
                     newy >= 0):  # Prüfe ob er das Spielfeld verlassen würde
                 if state["cells"][newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
                     if own_player["speed"] > 1:
@@ -160,7 +163,7 @@ async def play():
                                getnewdirection(own_player["direction"], "right"))
             newx = newpos[1]
             newy = newpos[0]
-            if ([state["height"] - 1, state["width"] - 1] >= newpos) & (newx >= 0) & (
+            if state["height"] - 1 >= newy and state["width"] - 1 >= newx and (newx >= 0) and (
                     newy >= 0):  # Prüfe ob er das Spielfeld verlassen würde
                 if state["cells"][newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
                     if own_player["speed"] > 1:
