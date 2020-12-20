@@ -4,15 +4,23 @@ import asyncio
 import random
 from datetime import datetime
 import json
+from queue import Queue
+
 import websockets
 from copy import deepcopy
 
 # TODO / Ideen : Prüfung, ob nächster Zug "einsperrt"
-# TODO Abarbeitung der Rekursion Ebene nach Ebene (statt erst links komplett, dann rechts komplett etc.)
 # TODO alles optimieren->höhere Tiefe möglich
 # TODO / Ideen : Aktuell bevorzugt er nach vorne gehen gegenüber abbiegen, weil bei geradeaus hat er noch die
 #   Möglichkeiten sd,cn und su
+# TODO: teilweise berechnete Ebenen mit Durchschnitt berechnen lassen
+# TODO / Ideen: Evtl. in den letzten 5 sek z.B. keine Methode mehr in die Queue
             #Vielleicht die Tiefe bevorzugen, dann erst die möglichen Richtungen
+
+global ebene
+global notbremse
+global q
+
 
 def getnewdirection(dir, change):  # bestimme neue Richtung nach Wechsel
     if dir == change:
@@ -44,28 +52,30 @@ def getnewpos(x, y, s, dir):  # bestimme neue Position
         return [y, x + s]
 
 
-def checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline):
-    sum = 0
+def checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action):
+    global ebene
+    global q
+    global notbremse
+
+    if not len(ebene) > depth:
+        ebene.append([0,0,0,0,0])
 
     #   Bei Jahreswechsel kann es zu Fehlern (zu kurzen Berechnungen) kommen..
     #   Auch so kann es sein, dass die ersten Berechnungen noch durchkommen, der Rest aber nicht mehr
 
-    # current_time = str(datetime.now())
-    # mo = int(current_time[5:7])
-    # t = int(current_time[8:10])
-    # h = int(current_time[11:13])
-    # m = int(current_time[14:16])
-    # s = int(current_time[17:19])
-    # ctime = (((mo*30+t)*24+h)*60+m)*60+s
-    # print(deadline)
-    # print(ctime)
+    current_time = str(datetime.utcnow())
+    mo = int(current_time[5:7])
+    t = int(current_time[8:10])
+    h = int(current_time[11:13])
+    m = int(current_time[14:16])
+    s = int(current_time[17:19])
+    ctime = (((mo*30+t)*24+h)*60+m)*60+s
 
-    # if ctime+1 > deadline:
-    #     return 0
-
-
-    if depth <= 0:
-        return 0
+    if ctime+1 > deadline:
+        ebene[depth][action] = -2
+        notbremse = True
+        print(depth)
+        return
 
     clearsd = False     #wird verwendet, um Ressourcen bei CN zu schonen (CN = SD mit neuem Kopf). Also wenn True, dann muss nurnoch Kopf geprüft werden
     clearcn = False     #wird verwendet, um Ressourcen bei SU zu schonen (CU = CN mit neuem Kopf). Also wenn True, dann muss nurnoch Kopf geprüft werden
@@ -100,8 +110,9 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                     newboard[newyy][newxx] = 7
                 if not hit:
                     clearsd = True
-                    sum += wert + checkchoices(newx, newy, direction, newboard, speed - 1, width, height, wert / 2,
-                                               depth - 1, counter + 1, deadline)
+                    ebene[depth][action] += wert
+                    q.put((checkchoices,[newx, newy, direction, newboard, speed - 1, width, height, wert / 2,
+                                               depth + 1, counter + 1, deadline, action]))
 
     # check-nothing
     if not clearsd:
@@ -135,8 +146,9 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                 newboard[newyy][newxx] = 7
             if not hit:
                 clearcn = True
-                sum += wert + checkchoices(newx, newy, direction, newboard, speed, width, height, wert / 2,
-                                           depth - 1, counter + 1, deadline)
+                ebene[depth][action] += wert
+                q.put((checkchoices,[newx, newy, direction, newboard, speed, width, height, wert / 2,
+                                           depth + 1, counter + 1, deadline,action]))
 
     # check-speedup
     if not clearcn:
@@ -170,8 +182,9 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                         break
                     newboard[newyy][newxx] = 7  # TODO evtl anpassen, dass mit SpielerID geschrieben wird, aber irrelevant
                 if not hit:
-                    sum += wert + checkchoices(newx, newy, direction, newboard, speed + 1, width, height, wert / 2,
-                                               depth - 1, counter + 1, deadline)
+                    ebene[depth][action] += wert
+                    q.put((checkchoices,[newx, newy, direction, newboard, speed + 1, width, height, wert / 2,
+                                               depth + 1, counter + 1, deadline,action]))
 
     # check-left and check-right
     for newd in ["left", "right"]:
@@ -203,9 +216,10 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                         break
                     newboard[newyy][newxx] = 7
                 if not hit:
-                    sum += wert + checkchoices(newx, newy, newdirection, newboard, speed, width, height, wert / 2,
-                                               depth - 1, counter + 1, deadline)
-    return sum
+                    ebene[depth][action] += wert
+                    q.put((checkchoices,[newx, newy, newdirection, newboard, speed, width, height, wert / 2,
+                                               depth + 1, counter + 1, deadline,action]))
+
 
 
 async def play():
@@ -219,13 +233,13 @@ async def play():
         counter = 0
         choices_actions = ["speed_up", "slow_down", "change_nothing", "turn_left", "turn_right"]
         wert = 1
-        depth = 4
+
 
         while True:
             state_json = await websocket.recv()
             state = json.loads(state_json)
             print("<", state)
-            print("Startzeit: " + str(datetime.now()))
+            print("Startzeit: " + str(datetime.utcnow()))
             own_player = state["players"][str(state["you"])]
             if not state["running"] or not own_player["active"]:
                 if not own_player["active"]:
@@ -235,8 +249,14 @@ async def play():
                     erfolg = random.choice(valid_responses)
                 print(erfolg)
                 break
+            depth = 0
             counter += 1
             choices = [0, 0, 0, 0, 0]
+            global ebene
+            ebene = [[0,0,0,0,0]]
+            global q
+            q = Queue()
+
             clearsd = False
             clearcn = False
             mo = int(state["deadline"][5:7])
@@ -336,9 +356,10 @@ async def play():
                         if not hit:
                             clearsd = True
                             #print("sd: " + str(newx) + " " + str(newy))
-                            choices[1] = wert + checkchoices(newx, newy, own_player["direction"], board,
+                            ebene[depth][1] += wert
+                            q.put((checkchoices,[newx, newy, own_player["direction"], board,
                                                              own_player["speed"] - 1, state["width"],
-                                                             state["height"], wert / 2, depth, counter + 1, deadline)
+                                                             state["height"], wert / 2, depth+1, counter + 1, deadline,1]))
 
             # check-nothing
             if not clearsd:
@@ -373,9 +394,10 @@ async def play():
                     if not hit:
                         clearcn = True
                         #print("cn: " + str(newx) + " " + str(newy))
-                        choices[2] = wert + checkchoices(newx, newy, own_player["direction"], board,
+                        ebene[depth][2] += wert
+                        q.put((checkchoices,[newx, newy, own_player["direction"], board,
                                                          own_player["speed"], state["width"], state["height"], wert / 2,
-                                                         depth, counter + 1, deadline)
+                                                         depth+1, counter + 1, deadline,2]))
 
             # check-speedup
             if not clearcn:
@@ -411,9 +433,10 @@ async def play():
 
                         if not hit:
                             #print("su: " + str(newx) + " " + str(newy))
-                            choices[0] = wert + checkchoices(newx, newy, own_player["direction"],
+                            ebene[depth][0] += wert
+                            q.put((checkchoices,[newx, newy, own_player["direction"],
                                                              board, own_player["speed"] + 1, state["width"],
-                                                             state["height"], wert / 2, depth, counter + 1, deadline)
+                                                             state["height"], wert / 2, depth+1, counter + 1, deadline,0]))
 
             # check-left
             board = deepcopy(boardenemies)
@@ -445,9 +468,10 @@ async def play():
                         board[newyy][newxx] = 7
                     if not hit:
                         #print("l: " + str(newx) + " " + str(newy))
-                        choices[3] = wert + checkchoices(newx, newy, newdirection, board,
+                        ebene[depth][3] += wert
+                        q.put((checkchoices,[newx, newy, newdirection, board,
                                                          own_player["speed"], state["width"], state["height"],
-                                                         wert / 2, depth, counter + 1, deadline)
+                                                         wert / 2, depth+1, counter + 1, deadline,3]))
 
             # check-right
             board = deepcopy(boardenemies)
@@ -479,9 +503,34 @@ async def play():
                         board[newyy][newxx] = 7
                     if not hit:
                         #print("r: " + str(newx) + " " + str(newy))
-                        choices[4] = wert + checkchoices(newx, newy, newdirection, board,
+                        ebene[depth][4] += wert
+                        q.put((checkchoices,[newx, newy, newdirection, board,
                                                          own_player["speed"], state["width"], state["height"],
-                                                         wert / 2, depth, counter + 1, deadline)
+                                                         wert / 2, depth+1, counter + 1, deadline,4]))
+
+            global notbremse
+            notbremse = False
+            while not q.empty():
+                f, args = q.get()
+                f(*args)
+                if notbremse:
+                    break
+
+            # zusammenrechnen
+            myc = -1
+            bremse = False
+            while True:
+                myc += 1
+                for i in range(0, 5):
+                    if ebene[myc][i] < 0:
+                        bremse = True
+                        break
+                if bremse:
+                    break
+
+            for i in range(0, myc):
+                for j in range(0, 5):
+                    choices[j] += ebene[i][j]
 
             # Wähle von den möglichen Zügen den bestbewertesten (also welcher die meisten Unterzüge ermöglicht) aus
             # und gebe diesen aus. Falls 2 Züge gleich gut sind, dann wähle zufällig einen aus
@@ -496,7 +545,7 @@ async def play():
             if len(randy) > 1:
                 # print("random")
                 action = random.choice(randy)
-            print("Endzeit: " + str(datetime.now()))
+            print("Endzeit: " + str(datetime.utcnow()))
             print(">", action)
             action_json = json.dumps({"action": action})
             await websocket.send(action_json)
