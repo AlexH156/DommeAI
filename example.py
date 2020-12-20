@@ -9,13 +9,10 @@ from queue import Queue
 import websockets
 from copy import deepcopy
 
-# TODO / Ideen : Prüfung, ob nächster Zug "einsperrt"
 # TODO alles optimieren->höhere Tiefe möglich
-# TODO / Ideen : Aktuell bevorzugt er nach vorne gehen gegenüber abbiegen, weil bei geradeaus hat er noch die
-#   Möglichkeiten sd,cn und su
-# TODO: teilweise berechnete Ebenen mit Durchschnitt berechnen lassen
-# TODO / Ideen: Evtl. in den letzten 5 sek z.B. keine Methode mehr in die Queue
-            #Vielleicht die Tiefe bevorzugen, dann erst die möglichen Richtungen
+# TODO alles aufhübschen (keine Prio)
+# TODO evtl: teilweise berechnete Ebenen mit Durchschnitt berechnen lassen (keine Prio)
+
 
 global ebene
 global notbremse
@@ -527,6 +524,11 @@ async def play():
                         break
                 if bremse:
                     break
+
+            #Züge, die tiefere Ebenen erreichen werden deutlich bevorzugt (+100)
+            for i in range(0,5):
+                if ebene[myc-1][i] != 0:
+                    ebene[0][i] += 100
 
             for i in range(0, myc):
                 for j in range(0, 5):
