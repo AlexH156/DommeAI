@@ -5,7 +5,7 @@ import random
 from datetime import datetime
 import json
 from queue import Queue
-from matplotlib import pyplot
+from matplotlib import pyplot,colors
 
 import websockets
 from copy import deepcopy
@@ -53,9 +53,11 @@ def getnewpos(x, y, s, dir):  # bestimme neue Position
 
 
 def anzeige(state):
+    you = state["players"][str(state["you"])]
     board = state["cells"]
     pyplot.figure(figsize=(6,6))
-    pyplot.imshow(board)
+    colormap = colors.ListedColormap(["white","green","blue","yellow","red","cyan","magenta","grey"])
+    pyplot.imshow(board, cmap=colormap)
     pyplot.show(block=False)
 
 
@@ -63,6 +65,9 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     global ebene
     global q
     global notbremse
+    global myc
+
+    myc = depth
 
     if not len(ebene) > depth:
         ebene.append([0,0,0,0,0])
@@ -79,8 +84,6 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     ctime = (((mo*30+t)*24+h)*60+m)*60+s
 
     if ctime+1 > deadline:
-        global myc
-        myc = depth
         notbremse = True
         print(depth)
         return
@@ -258,8 +261,7 @@ async def play():
                 print(erfolg)
                 pyplot.show()
                 break
-            if show:
-                anzeige(state)
+
 
             depth = 0
             counter += 1
@@ -525,6 +527,7 @@ async def play():
                 f(*args)
 
             # Züge, die tiefere Ebenen erreichen, werden deutlich bevorzugt (+100)
+            print(ebene)
             global myc
             for i in range(0,5):
                 if myc > 0:
@@ -551,6 +554,8 @@ async def play():
             print("Endzeit: " + str(datetime.utcnow()))
             print(">", action)
             action_json = json.dumps({"action": action})
+            if show:
+                anzeige(state)
             await websocket.send(action_json)
 
 
