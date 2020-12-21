@@ -14,6 +14,7 @@ from copy import deepcopy
 # TODO alles aufhübschen (keine Prio)
 # TODO evtl: teilweise berechnete Ebenen mit Durchschnitt berechnen lassen (keine Prio)
 # TODO while 522 fixen
+# TODO Evtl. im Endgame langsame Geschwindigkeit bevorzugen
 
 
 global ebene
@@ -52,13 +53,26 @@ def getnewpos(x, y, s, dir):  # bestimme neue Position
         return [y, x + s]
 
 
-def anzeige(state):
-    you = state["players"][str(state["you"])]
+def anzeige(state,counter, action,choices, depth):
+    you = str(state["players"][str(state["you"])])
     board = state["cells"]
-    pyplot.figure(figsize=(6,6))
-    colormap = colors.ListedColormap(["white","green","blue","yellow","red","cyan","magenta","grey"])
-    pyplot.imshow(board, cmap=colormap)
-    pyplot.show(block=False)
+    w = max(state["width"]/10,5)
+    h = (state["height"]/10)+0.5
+    for p in range(1, int(len(state["players"]) + 1)):
+        try:
+            board[state["players"][str(p)]["y"]][state["players"][str(p)]["x"]] = -1
+        except IndexError:
+            pass
+
+    with pyplot.xkcd():
+        pyplot.figure(figsize=(w,h))
+        colormap = colors.ListedColormap(["black", "white","green","blue", "yellow", "red", "cyan", "magenta", "grey"])
+        pyplot.imshow(board, cmap=colormap)
+        pyplot.title("Runde: " + str(counter))
+        pyplot.xticks([])
+        pyplot.yticks([])
+        pyplot.xlabel(you + "\n" + str(choices) + "\n" + "nächster Zug: " + str(action) + "    Tiefe: " + str(depth))
+        pyplot.show(block=False)
 
 
 def checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action):
@@ -555,7 +569,7 @@ async def play():
             print(">", action)
             action_json = json.dumps({"action": action})
             if show:
-                anzeige(state)
+                anzeige(state,counter,action,choices,myc-1)
             await websocket.send(action_json)
 
 
