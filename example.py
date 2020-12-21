@@ -5,7 +5,7 @@ import random
 from datetime import datetime
 import json
 from queue import Queue
-from matplotlib import pyplot,colors
+from matplotlib import pyplot, colors
 
 import websockets
 from copy import deepcopy
@@ -15,6 +15,10 @@ from copy import deepcopy
 # TODO evtl: teilweise berechnete Ebenen mit Durchschnitt berechnen lassen (keine Prio)
 # TODO while 522 fixen
 # TODO Evtl. im Endgame langsame Geschwindigkeit bevorzugen
+# TODO example.py umbenennen
+# TODO Berechnung abbrechen, wenn nur noch eine Möglichkeit auf der Ebene (Optimierung für Machine Learning etc)
+# TODO / Problem: Domme merkt zu spät, wenn er in eine Sackgasse geht - evtl Sprünge größer gewichten?
+# TODO evtl Counter an berechneten Möglichkeiten zum Debuggen der Effizienz einbauen
 
 
 global ebene
@@ -54,24 +58,40 @@ def getnewpos(x, y, s, dir):  # bestimme neue Position
 
 
 def anzeige(state,counter, action,choices, depth):
-    you = str(state["players"][str(state["you"])])
-    board = state["cells"]
-    w = max(state["width"]/10,5)
-    h = (state["height"]/10)+0.5
-    for p in range(1, int(len(state["players"]) + 1)):
-        try:
+    you = str(state["players"][str(state["you"])])          #Informationen über den aktuellen Stand des eigenen Spielers
+    board = state["cells"]              #Das Spielfeld als 2D Matrix
+    w = max(state["width"]/10, 5.8)        #Breite des GUI
+    h = (state["height"]/10)+0.5        #Höhe des GUI
+
+    anzahl = int(len(state["players"]))
+    farben = ["schwarz", "weiß", "grün", "blau", "orange", "rot", "cyan", "magenta"]
+
+    for p in range(1, (anzahl + 1)):
+        try:    #Köpfe der Schlangen durch "-1" ersetzen, um sie zu visualisieren
             board[state["players"][str(p)]["y"]][state["players"][str(p)]["x"]] = -1
         except IndexError:
             pass
 
     with pyplot.xkcd():
         pyplot.figure(figsize=(w,h))
-        colormap = colors.ListedColormap(["black", "white","green","blue", "yellow", "red", "cyan", "magenta", "grey"])
+
+        #Farben
+        if(anzahl == 6):
+            colormap = colors.ListedColormap(["black", "white", "green", "blue", "orange", "red", "cyan", "magenta"])
+        elif(anzahl == 5):
+            colormap = colors.ListedColormap(["black", "white", "green", "blue", "orange", "red", "cyan"])
+        elif(anzahl == 4):
+            colormap = colors.ListedColormap(["black", "white", "green", "blue", "orange", "red"])
+        elif(anzahl == 3):
+            colormap = colors.ListedColormap(["black", "white", "green", "blue", "orange"])
+        else:
+            colormap = colors.ListedColormap(["black", "white", "green", "blue"])
+
         pyplot.imshow(board, cmap=colormap)
-        pyplot.title("Runde: " + str(counter))
-        pyplot.xticks([])
-        pyplot.yticks([])
-        pyplot.xlabel(you + "\n" + str(choices) + "\n" + "nächster Zug: " + str(action) + "    Tiefe: " + str(depth))
+        pyplot.title("DommeAI: "+ farben[(state["you"] + 1)] + "\n" + "Runde: " + str(counter - 1))     #Überschrift
+        pyplot.xticks([])       #keine Achsenbeschriftungen
+        pyplot.yticks([])       # -
+        pyplot.xlabel(you + "\n" + str(choices) + "\n" + "nächster Zug: " + str(action) + "    Tiefe: " + str(depth) + ",   Jump in T - " + str(5 - ((counter - 2) % 6)))
         pyplot.show(block=False)
 
 
@@ -258,7 +278,7 @@ async def play():
         counter = 0
         choices_actions = ["speed_up", "slow_down", "change_nothing", "turn_left", "turn_right"]
         wert = 1
-        show = True
+        show = True         #Bestimmt, ob das GUI angezeigt wird
 
         while True:
             state_json = await websocket.recv()
@@ -568,7 +588,7 @@ async def play():
             print("Endzeit: " + str(datetime.utcnow()))
             print(">", action)
             action_json = json.dumps({"action": action})
-            if show:
+            if show:        #GUI, falls show == True
                 anzeige(state,counter,action,choices,myc-1)
             await websocket.send(action_json)
 
