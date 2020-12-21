@@ -5,6 +5,7 @@ import random
 from datetime import datetime
 import json
 from queue import Queue
+from matplotlib import pyplot
 
 import websockets
 from copy import deepcopy
@@ -12,11 +13,13 @@ from copy import deepcopy
 # TODO alles optimieren->höhere Tiefe möglich
 # TODO alles aufhübschen (keine Prio)
 # TODO evtl: teilweise berechnete Ebenen mit Durchschnitt berechnen lassen (keine Prio)
+# TODO while 522 fixen
 
 
 global ebene
 global notbremse
 global q
+global myc
 
 
 def getnewdirection(dir, change):  # bestimme neue Richtung nach Wechsel
@@ -49,6 +52,13 @@ def getnewpos(x, y, s, dir):  # bestimme neue Position
         return [y, x + s]
 
 
+def anzeige(state):
+    board = state["cells"]
+    pyplot.figure(figsize=(6,6))
+    pyplot.imshow(board)
+    pyplot.show(block=False)
+
+
 def checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action):
     global ebene
     global q
@@ -69,7 +79,8 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     ctime = (((mo*30+t)*24+h)*60+m)*60+s
 
     if ctime+1 > deadline:
-        ebene[depth][action] = -2
+        global myc
+        myc = depth
         notbremse = True
         print(depth)
         return
@@ -230,7 +241,7 @@ async def play():
         counter = 0
         choices_actions = ["speed_up", "slow_down", "change_nothing", "turn_left", "turn_right"]
         wert = 1
-
+        show = True
 
         while True:
             state_json = await websocket.recv()
@@ -245,7 +256,11 @@ async def play():
                     valid_responses = ["Winner Winner, Chicken Dinner", "git gud", "Too weak, too slow", "ez game, ez life", "ez pz lemon squeezy", "ez", "rekt", "l2p", "noobs", "too ez"]
                     erfolg = random.choice(valid_responses)
                 print(erfolg)
+                pyplot.show()
                 break
+            if show:
+                anzeige(state)
+
             depth = 0
             counter += 1
             choices = [0, 0, 0, 0, 0]
@@ -319,8 +334,6 @@ async def play():
                                     pnewx = pnewpos[1]
                                     pnewy = pnewpos[0]
                                     boardenemies[pnewy][pnewx] = 7
-            #print(boardenemies)
-
 
             # check-slowdown
             board = deepcopy(boardenemies)
@@ -507,29 +520,16 @@ async def play():
 
             global notbremse
             notbremse = False
-            while not q.empty():
+            while not q.empty() and not notbremse:
                 f, args = q.get()
                 f(*args)
-                if notbremse:
-                    break
 
-
-            # zusammenrechnen
-            myc = -1
-            bremse = False
-            while True:
-                myc += 1
-                for i in range(0, 5):
-                    if ebene[myc][i] < 0:
-                        bremse = True
-                        break
-                if bremse:
-                    break
-
-            #Züge, die tiefere Ebenen erreichen werden deutlich bevorzugt (+100)
+            # Züge, die tiefere Ebenen erreichen, werden deutlich bevorzugt (+100)
+            global myc
             for i in range(0,5):
-                if ebene[myc-1][i] != 0:
-                    ebene[0][i] += 100
+                if myc > 0:
+                    if ebene[myc-1][i] != 0:
+                        ebene[0][i] += 100
 
             for i in range(0, myc):
                 for j in range(0, 5):
