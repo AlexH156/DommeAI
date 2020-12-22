@@ -301,6 +301,10 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
 
 
 async def play():
+    global ebene
+    global q
+    global myc
+    global notbremse
     filename = 'apikey.txt'
 
     url = "wss://msoll.de/spe_ed"
@@ -331,16 +335,15 @@ async def play():
                 pyplot.show()
                 break
 
+            # Initialisierung
             depth = 0
             counter += 1
             choices = [0, 0, 0, 0, 0]
-            global ebene
             ebene = [[0, 0, 0, 0, 0]]
-            global q
             q = Queue()
-
             clearsd = False
             clearcn = False
+            notbremse = False
             mo = int(state["deadline"][5:7])
             t = int(state["deadline"][8:10])
             h = int(state["deadline"][11:13])
@@ -500,15 +503,13 @@ async def play():
                                               own_player["speed"], state["width"], state["height"],
                                               wert / 2, depth + 1, counter + 1, deadline, 4]))
 
-            global notbremse
-            notbremse = False
+            # Bearbeite solange Objekte aus der Queue bis diese leer ist oder 1 Sekunde bis zur Deadline verbleibt
             while not q.empty() and not notbremse:
                 f, args = q.get()
                 f(*args)
 
             # Züge, die tiefere Ebenen erreichen, werden deutlich bevorzugt (+100)
             print(ebene)
-            global myc
             for i in range(0, 5):
                 if myc > 0:
                     if ebene[myc - 1][i] != 0:
@@ -526,14 +527,12 @@ async def play():
             # Falls 2 Züge gleich gut sind, dann wähle zufällig einen der beiden aus
             print(choices)
             best = max(choices)
-            # print(state["deadline"])
             action = choices_actions[choices.index(best)]
             randy = []
             for i in range(len(choices)):
                 if choices[i] == best:
                     randy.append(choices_actions[i])
             if len(randy) > 1:
-                # print("random")
                 action = random.choice(randy)
             print("Endzeit: " + str(datetime.utcnow()))
             print(">", action)
