@@ -58,7 +58,7 @@ def getnewpos(x, y, s, direction):  # bestimme neue Position
 
 
 def gegnerboard(state):
-    boardenemies = state["cells"]
+    boardenemies = deepcopy(state["cells"])
 
     # Noch nicht alles perfekt. Prüft nicht ob sechste runde und ob er in sich selbst rein crashen würde.
     # Würde es aus performancegründen auch nicht reinbringen (so bleibt unsere Schlange sehr defensiv)
