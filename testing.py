@@ -402,7 +402,6 @@ def main():
 
 
 
-
     # you = str(state["players"][str(state["you"])])
     # counter = 3
     # choices = [0,0,0,0,0]

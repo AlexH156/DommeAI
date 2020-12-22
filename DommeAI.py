@@ -2,6 +2,7 @@
 
 import asyncio
 import random
+import threading
 from datetime import datetime
 import json
 from queue import Queue
@@ -13,19 +14,16 @@ from copy import deepcopy
 # TODO alles optimieren->höhere Tiefe möglich
 # TODO alles aufhübschen (keine Prio)
 # TODO evtl: teilweise berechnete Ebenen mit Durchschnitt berechnen lassen (keine Prio)
-# TODO while 522 fixen
 # TODO Evtl. im Endgame langsame Geschwindigkeit bevorzugen
-# TODO example.py umbenennen
 # TODO Berechnung abbrechen, wenn nur noch eine Möglichkeit auf der Ebene (Optimierung für Machine Learning etc)
 # TODO / Problem: Domme merkt zu spät, wenn er in eine Sackgasse geht - evtl Sprünge größer gewichten?
 # TODO evtl: Counter an berechneten Möglichkeiten zum Debuggen der Effizienz einbauen
-# TODO 6te Runde in gegnerboard einbauen
-# TODO wie teuer json?
 
 global ebene
 global notbremse
 global q
 global myc
+global lock_objekt
 
 
 def getnewdirection(direction, change):  # bestimme neue Richtung nach Wechsel
@@ -58,10 +56,15 @@ def getnewpos(x, y, s, direction):  # bestimme neue Position
         return y, x + s
 
 
-def gegnerboard(state):
+def gegnerboard(state,counter):
     boardenemies = deepcopy(state["cells"])
 
-    # Noch nicht alles perfekt. Prüft nicht ob sechste runde und ob er in sich selbst rein crashen würde.
+    if counter % 6 == 0:
+        lucke = True
+    else:
+        lucke = False
+
+    # Noch nicht alles perfekt. Prüft nicht ob er in sich selbst rein crashen würde.
     # Würde es aus performancegründen auch nicht reinbringen (so bleibt unsere Schlange sehr defensiv)
 
     # Gehe durch alle Spieler die noch aktiv sind
@@ -77,6 +80,11 @@ def gegnerboard(state):
                 if state["height"] - 1 >= pnewy >= 0 and state["width"] - 1 >= pnewx >= 0:
                     boardenemies[pnewy][pnewx] = 7
                     for i in range(1, state["players"][str(p)]["speed"] - 1):
+                        if lucke:
+                            pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
+                                                     1, state["players"][str(p)]["direction"])
+                            boardenemies[pnewy][pnewx] = 7
+                            break
                         pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
                                             i, state["players"][str(p)]["direction"])
                         boardenemies[pnewy][pnewx] = 7
@@ -101,6 +109,11 @@ def gegnerboard(state):
                     if state["height"] - 1 >= pnewy >= 0 and state["width"] - 1 >= pnewx >= 0:
                         boardenemies[pnewy][pnewx] = 7
                         for i in range(1, state["players"][str(p)]["speed"]):
+                            if lucke:
+                                pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
+                                                         1, newdirection)
+                                boardenemies[pnewy][pnewx] = 7
+                                break
                             pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
                                                 i, newdirection)
                             boardenemies[pnewy][pnewx] = 7
@@ -158,6 +171,7 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     global q
     global notbremse
     global myc
+    global lock_objekt
 
     myc = depth
 
@@ -207,7 +221,8 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                     newboard[newyy][newxx] = 7
                 if not hit:
                     clearsd = True
-                    ebene[depth][action] += wert
+                    with lock_objekt:
+                        ebene[depth][action] += wert
                     q.put((checkchoices, [newx, newy, direction, newboard, speed - 1, width, height, wert / 2,
                                           depth + 1, counter + 1, deadline, action]))
 
@@ -236,7 +251,8 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                 newboard[newyy][newxx] = 7
             if not hit:
                 clearcn = True
-                ebene[depth][action] += wert
+                with lock_objekt:
+                    ebene[depth][action] += wert
                 q.put((checkchoices, [newx, newy, direction, newboard, speed, width, height, wert / 2,
                                       depth + 1, counter + 1, deadline, action]))
 
@@ -264,10 +280,10 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                     if not board[newyy][newxx] == 0:
                         hit = True
                         break
-                    newboard[newyy][
-                        newxx] = 7  # TODO evtl anpassen, dass mit SpielerID geschrieben wird, aber irrelevant
+                    newboard[newyy][newxx] = 7
                 if not hit:
-                    ebene[depth][action] += wert
+                    with lock_objekt:
+                        ebene[depth][action] += wert
                     q.put((checkchoices, [newx, newy, direction, newboard, speed + 1, width, height, wert / 2,
                                           depth + 1, counter + 1, deadline, action]))
 
@@ -295,7 +311,8 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                         break
                     newboard[newyy][newxx] = 7
                 if not hit:
-                    ebene[depth][action] += wert
+                    with lock_objekt:
+                        ebene[depth][action] += wert
                     q.put((checkchoices, [newx, newy, newdirection, newboard, speed, width, height, wert / 2,
                                           depth + 1, counter + 1, deadline, action]))
 
@@ -305,6 +322,7 @@ async def play():
     global q
     global myc
     global notbremse
+    global lock_objekt
     filename = 'apikey.txt'
 
     url = "wss://msoll.de/spe_ed"
@@ -344,6 +362,7 @@ async def play():
             clearsd = False
             clearcn = False
             notbremse = False
+            lock_objekt = threading.Lock()
             mo = int(state["deadline"][5:7])
             t = int(state["deadline"][8:10])
             h = int(state["deadline"][11:13])
@@ -353,7 +372,7 @@ async def play():
 
             # Erstelle ein Board mit allen möglichen Zügen der aktiven Gegner, um Überschneidungen im nächsten Schritt
             # zu verhindern. Berücksichtigt nur Züge, bei denen der Gegner nicht außerhalb des Feldes landet
-            boardenemies = gegnerboard(state)
+            boardenemies = gegnerboard(state,counter)
 
             # check-slowdown
             board = deepcopy(boardenemies)
@@ -379,7 +398,8 @@ async def play():
                             board[newyy][newxx] = 7
                         if not hit:
                             clearsd = True
-                            ebene[depth][1] += wert
+                            with lock_objekt:
+                                ebene[depth][1] += wert
                             q.put((checkchoices, [newx, newy, own_player["direction"], board,
                                                   own_player["speed"] - 1, state["width"],
                                                   state["height"], wert / 2, depth + 1, counter + 1, deadline, 1]))
@@ -410,7 +430,8 @@ async def play():
                         board[newyy][newxx] = 7
                     if not hit:
                         clearcn = True
-                        ebene[depth][2] += wert
+                        with lock_objekt:
+                            ebene[depth][2] += wert
                         q.put((checkchoices, [newx, newy, own_player["direction"], board,
                                               own_player["speed"], state["width"], state["height"], wert / 2,
                                               depth + 1, counter + 1, deadline, 2]))
@@ -442,7 +463,8 @@ async def play():
                             board[newyy][newxx] = 7
 
                         if not hit:
-                            ebene[depth][0] += wert
+                            with lock_objekt:
+                                ebene[depth][0] += wert
                             q.put((checkchoices, [newx, newy, own_player["direction"],
                                                   board, own_player["speed"] + 1, state["width"],
                                                   state["height"], wert / 2, depth + 1, counter + 1, deadline, 0]))
@@ -470,7 +492,8 @@ async def play():
                             break
                         board[newyy][newxx] = 7
                     if not hit:
-                        ebene[depth][3] += wert
+                        with lock_objekt:
+                            ebene[depth][3] += wert
                         q.put((checkchoices, [newx, newy, newdirection, board,
                                               own_player["speed"], state["width"], state["height"],
                                               wert / 2, depth + 1, counter + 1, deadline, 3]))
@@ -498,7 +521,8 @@ async def play():
                             break
                         board[newyy][newxx] = 7
                     if not hit:
-                        ebene[depth][4] += wert
+                        with lock_objekt:
+                            ebene[depth][4] += wert
                         q.put((checkchoices, [newx, newy, newdirection, board,
                                               own_player["speed"], state["width"], state["height"],
                                               wert / 2, depth + 1, counter + 1, deadline, 4]))
