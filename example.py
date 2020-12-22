@@ -18,7 +18,7 @@ from copy import deepcopy
 # TODO example.py umbenennen
 # TODO Berechnung abbrechen, wenn nur noch eine Möglichkeit auf der Ebene (Optimierung für Machine Learning etc)
 # TODO / Problem: Domme merkt zu spät, wenn er in eine Sackgasse geht - evtl Sprünge größer gewichten?
-# TODO evtl Counter an berechneten Möglichkeiten zum Debuggen der Effizienz einbauen
+# TODO evtl: Counter an berechneten Möglichkeiten zum Debuggen der Effizienz einbauen
 
 
 global ebene
@@ -58,40 +58,48 @@ def getnewpos(x, y, s, dir):  # bestimme neue Position
 
 
 def anzeige(state,counter, action,choices, depth):
-    you = str(state["players"][str(state["you"])])          #Informationen über den aktuellen Stand des eigenen Spielers
+    #Informationen über den aktuellen Stand des eigenen Spielers
+    youx = str(state["players"][str(state["you"])]["x"])
+    youy = str(state["players"][str(state["you"])]["y"])
+    youdir = str(state["players"][str(state["you"])]["direction"])
+    youspeed = str(state["players"][str(state["you"])]["speed"])
+
     board = state["cells"]              #Das Spielfeld als 2D Matrix
     w = max(state["width"]/10, 5.8)        #Breite des GUI
-    h = (state["height"]/10)+0.5        #Höhe des GUI
+    h = (state["height"]/10)+0.5           #Höhe des GUI
 
     anzahl = int(len(state["players"]))
-    farben = ["schwarz", "weiß", "grün", "blau", "orange", "rot", "cyan", "magenta"]
+    farben = ["grau", "weiß", "grün", "blau", "orange", "rot", "cyan", "magenta"]
 
+    # Köpfe der Schlangen durch "-1" ersetzen, um sie zu visualisieren
     for p in range(1, (anzahl + 1)):
-        try:    #Köpfe der Schlangen durch "-1" ersetzen, um sie zu visualisieren
+        try:
             board[state["players"][str(p)]["y"]][state["players"][str(p)]["x"]] = -1
         except IndexError:
             pass
 
-    with pyplot.xkcd():
+    with pyplot.xkcd():         #Stil der xkcd Comics, für normalen Stil einfach auskommentieren
         pyplot.figure(figsize=(w,h))
 
         #Farben
         if(anzahl == 6):
-            colormap = colors.ListedColormap(["black", "white", "green", "blue", "orange", "red", "cyan", "magenta"])
+            colormap = colors.ListedColormap(["grey", "white", "green", "blue", "orange", "red", "cyan", "magenta"])
         elif(anzahl == 5):
-            colormap = colors.ListedColormap(["black", "white", "green", "blue", "orange", "red", "cyan"])
+            colormap = colors.ListedColormap(["grey", "white", "green", "blue", "orange", "red", "cyan"])
         elif(anzahl == 4):
-            colormap = colors.ListedColormap(["black", "white", "green", "blue", "orange", "red"])
+            colormap = colors.ListedColormap(["grey", "white", "green", "blue", "orange", "red"])
         elif(anzahl == 3):
-            colormap = colors.ListedColormap(["black", "white", "green", "blue", "orange"])
+            colormap = colors.ListedColormap(["grey", "white", "green", "blue", "orange"])
         else:
-            colormap = colors.ListedColormap(["black", "white", "green", "blue"])
+            colormap = colors.ListedColormap(["grey", "white", "green", "blue"])
 
         pyplot.imshow(board, cmap=colormap)
         pyplot.title("DommeAI: "+ farben[(state["you"] + 1)] + "\n" + "Runde: " + str(counter - 1))     #Überschrift
-        pyplot.xticks([])       #keine Achsenbeschriftungen
-        pyplot.yticks([])       # -
-        pyplot.xlabel(you + "\n" + str(choices) + "\n" + "nächster Zug: " + str(action) + "    Tiefe: " + str(depth) + ",   Jump in T - " + str(5 - ((counter - 2) % 6)))
+        pyplot.xticks([])       # keine Achsenbeschriftungen
+        pyplot.yticks([])       #
+        pyplot.xlabel("x: " + youx + " y: " + youy + " | direction: " + youdir + " | speed: " + youspeed +
+                      "\n" + str(choices) +
+                      "\n" + "nächster Zug: " + str(action) + "  |  Tiefe: " + str(depth) + " | Jump in T - " + str(5 - ((counter - 2) % 6)))
         pyplot.show(block=False)
 
 
