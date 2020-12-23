@@ -175,7 +175,7 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     global myc
     global lock_objekt
 
-
+    # lock_objekt.acquire()
     myc = depth
 
     if not len(ebene) > depth:
@@ -222,8 +222,8 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                                           depth + 1, counter + 1, deadline, action]))
 
     # check-nothing
-    if not clearsd:
-        newboard = deepcopy(board)
+    # if not clearsd:
+    newboard = deepcopy(board)
     newy, newx = getnewpos(x, y, speed, direction)
     if height - 1 >= newy >= 0 and width - 1 >= newx >= 0:  # Prüfe ob er das Spielfeld verlassen würde
         if board[newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
@@ -251,8 +251,8 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                                       depth + 1, counter + 1, deadline, action]))
 
     # check-speedup
-    if not clearcn:
-        newboard = deepcopy(board)
+    # if not clearcn:
+    newboard = deepcopy(board)
     if speed < 10:
         newy, newx = getnewpos(x, y, speed + 1, direction)
         if height - 1 >= newy >= 0 and width - 1 >= newx >= 0:  # Prüfe ob er das Spielfeld verlassen würde
@@ -307,7 +307,7 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                     ebene[depth][action] += wert
                     q.put((checkchoices, [newx, newy, newdirection, newboard, speed, width, height, wert / 2,
                                           depth + 1, counter + 1, deadline, action]))
-
+    # lock_objekt.release()
 
 
 def play():
@@ -326,7 +326,7 @@ def play():
     counter = 0
     choices_actions = ["speed_up", "slow_down", "change_nothing", "turn_left", "turn_right"]
     wert = 1
-    show = False  # Bestimmt, ob das GUI angezeigt wird
+    show = True  # Bestimmt, ob das GUI angezeigt wird
 
     # state_json = await websocket.recv()
     state = {'width': 68, 'height': 47, 'cells': [
@@ -461,7 +461,7 @@ def play():
     # Erstelle ein Board mit allen möglichen Zügen der aktiven Gegner, um Überschneidungen im nächsten Schritt
     # zu verhindern. Berücksichtigt nur Züge, bei denen der Gegner nicht außerhalb des Feldes landet
     boardenemies = gegnerboard(state, counter)
-    lock_objekt.acquire()
+    # lock_objekt.acquire()
     # check-slowdown
     board = deepcopy(boardenemies)
     if own_player["speed"] > 1:
@@ -492,8 +492,8 @@ def play():
                                           state["height"], wert / 2, depth + 1, counter + 1, deadline, 1]))
 
     # check-nothing
-    if not clearsd:
-        board = deepcopy(boardenemies)
+    # if not clearsd:
+    board = deepcopy(boardenemies)
     newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"], own_player["direction"])
     # Prüfe ob er das Spielfeld verlassen würde
     if state["height"] - 1 >= newy >= 0 and state["width"] - 1 >= newx >= 0:
@@ -523,8 +523,8 @@ def play():
                                       depth + 1, counter + 1, deadline, 2]))
 
     # check-speedup
-    if not clearcn:
-        board = deepcopy(boardenemies)
+    # if not clearcn:
+    board = deepcopy(boardenemies)
     if own_player["speed"] < 10:
         newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"] + 1, own_player["direction"])
         # Prüfe ob er das Spielfeld verlassen würde
@@ -609,13 +609,11 @@ def play():
                 q.put((checkchoices, [newx, newy, newdirection, board,
                                       own_player["speed"], state["width"], state["height"],
                                       wert / 2, depth + 1, counter + 1, deadline, 4]))
-    lock_objekt.release()
+    # lock_objekt.release()
     # Bearbeite solange Objekte aus der Queue bis diese leer ist oder 1 Sekunde bis zur Deadline verbleibt
     while not q.empty() and not notbremse:
-        lock_objekt.acquire()
         f, args = q.get()
         f(*args)
-        lock_objekt.release()
 
     # Züge, die tiefere Ebenen erreichen, werden deutlich bevorzugt (+100)
     print(ebene)

@@ -221,14 +221,14 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                     newboard[newyy][newxx] = 7
                 if not hit:
                     clearsd = True
-                    with lock_objekt:
-                        ebene[depth][action] += wert
+                    # with lock_objekt:
+                    ebene[depth][action] += wert
                     q.put((checkchoices, [newx, newy, direction, newboard, speed - 1, width, height, wert / 2,
                                           depth + 1, counter + 1, deadline, action]))
 
     # check-nothing
-    if not clearsd:
-        newboard = deepcopy(board)
+    # if not clearsd:
+    newboard = deepcopy(board)
     newy, newx = getnewpos(x, y, speed, direction)
     if height - 1 >= newy >= 0 and width - 1 >= newx >= 0:  # Prüfe ob er das Spielfeld verlassen würde
         if board[newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
@@ -251,14 +251,14 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                 newboard[newyy][newxx] = 7
             if not hit:
                 clearcn = True
-                with lock_objekt:
-                    ebene[depth][action] += wert
+                # with lock_objekt:
+                ebene[depth][action] += wert
                 q.put((checkchoices, [newx, newy, direction, newboard, speed, width, height, wert / 2,
                                       depth + 1, counter + 1, deadline, action]))
 
     # check-speedup
-    if not clearcn:
-        newboard = deepcopy(board)
+    # if not clearcn:
+    newboard = deepcopy(board)
     if speed < 10:
         newy, newx = getnewpos(x, y, speed + 1, direction)
         if height - 1 >= newy >= 0 and width - 1 >= newx >= 0:  # Prüfe ob er das Spielfeld verlassen würde
@@ -282,8 +282,8 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                         break
                     newboard[newyy][newxx] = 7
                 if not hit:
-                    with lock_objekt:
-                        ebene[depth][action] += wert
+                    # with lock_objekt:
+                    ebene[depth][action] += wert
                     q.put((checkchoices, [newx, newy, direction, newboard, speed + 1, width, height, wert / 2,
                                           depth + 1, counter + 1, deadline, action]))
 
@@ -311,8 +311,8 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                         break
                     newboard[newyy][newxx] = 7
                 if not hit:
-                    with lock_objekt:
-                        ebene[depth][action] += wert
+                    # with lock_objekt:
+                    ebene[depth][action] += wert
                     q.put((checkchoices, [newx, newy, newdirection, newboard, speed, width, height, wert / 2,
                                           depth + 1, counter + 1, deadline, action]))
 
@@ -328,7 +328,7 @@ async def play():
     url = "wss://msoll.de/spe_ed"
     key = open(filename, "r").read().strip()
 
-    async with websockets.connect(f"{url}?key={key}") as websocket:
+    async with websockets.connect(f"{url}?key={key}",ping_interval=None) as websocket:
         print("Waiting for initial state...", flush=True)
         counter = 0
         choices_actions = ["speed_up", "slow_down", "change_nothing", "turn_left", "turn_right"]
@@ -398,15 +398,15 @@ async def play():
                             board[newyy][newxx] = 7
                         if not hit:
                             clearsd = True
-                            with lock_objekt:
-                                ebene[depth][1] += wert
+                            # with lock_objekt:
+                            ebene[depth][1] += wert
                             q.put((checkchoices, [newx, newy, own_player["direction"], board,
                                                   own_player["speed"] - 1, state["width"],
                                                   state["height"], wert / 2, depth + 1, counter + 1, deadline, 1]))
 
             # check-nothing
-            if not clearsd:
-                board = deepcopy(boardenemies)
+            # if not clearsd:
+            board = deepcopy(boardenemies)
             newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"], own_player["direction"])
             # Prüfe ob er das Spielfeld verlassen würde
             if state["height"] - 1 >= newy >= 0 and state["width"] - 1 >= newx >= 0:
@@ -430,15 +430,15 @@ async def play():
                         board[newyy][newxx] = 7
                     if not hit:
                         clearcn = True
-                        with lock_objekt:
-                            ebene[depth][2] += wert
+                        # with lock_objekt:
+                        ebene[depth][2] += wert
                         q.put((checkchoices, [newx, newy, own_player["direction"], board,
                                               own_player["speed"], state["width"], state["height"], wert / 2,
                                               depth + 1, counter + 1, deadline, 2]))
 
             # check-speedup
-            if not clearcn:
-                board = deepcopy(boardenemies)
+            # if not clearcn:
+            board = deepcopy(boardenemies)
             if own_player["speed"] < 10:
                 newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"] + 1, own_player["direction"])
                 # Prüfe ob er das Spielfeld verlassen würde
@@ -463,8 +463,8 @@ async def play():
                             board[newyy][newxx] = 7
 
                         if not hit:
-                            with lock_objekt:
-                                ebene[depth][0] += wert
+                            # with lock_objekt:
+                            ebene[depth][0] += wert
                             q.put((checkchoices, [newx, newy, own_player["direction"],
                                                   board, own_player["speed"] + 1, state["width"],
                                                   state["height"], wert / 2, depth + 1, counter + 1, deadline, 0]))
@@ -492,8 +492,8 @@ async def play():
                             break
                         board[newyy][newxx] = 7
                     if not hit:
-                        with lock_objekt:
-                            ebene[depth][3] += wert
+                        # with lock_objekt:
+                        ebene[depth][3] += wert
                         q.put((checkchoices, [newx, newy, newdirection, board,
                                               own_player["speed"], state["width"], state["height"],
                                               wert / 2, depth + 1, counter + 1, deadline, 3]))
@@ -521,8 +521,8 @@ async def play():
                             break
                         board[newyy][newxx] = 7
                     if not hit:
-                        with lock_objekt:
-                            ebene[depth][4] += wert
+                        # with lock_objekt:
+                        ebene[depth][4] += wert
                         q.put((checkchoices, [newx, newy, newdirection, board,
                                               own_player["speed"], state["width"], state["height"],
                                               wert / 2, depth + 1, counter + 1, deadline, 4]))
