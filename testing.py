@@ -176,7 +176,7 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                         hit = True
                         break
                     newboard[newyy][
-                        newxx] = 7  # TODO evtl anpassen, dass mit SpielerID geschrieben wird, aber irrelevant
+                        newxx] = 7
                 if not hit:
                     ebene[depth][action] += wert
                     q.put((checkchoices, [newx, newy, direction, newboard, speed + 1, width, height, wert / 2,depth + 1, counter + 1, deadline, action]))

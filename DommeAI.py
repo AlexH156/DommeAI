@@ -18,6 +18,7 @@ from copy import deepcopy
 # TODO Berechnung abbrechen, wenn nur noch eine Möglichkeit auf der Ebene (Optimierung für Machine Learning etc)
 # TODO / Problem: Domme merkt zu spät, wenn er in eine Sackgasse geht - evtl Sprünge größer gewichten?
 # TODO evtl: Counter an berechneten Möglichkeiten zum Debuggen der Effizienz einbauen
+# TODO Optimierung für sd->cn->su
 
 global ebene
 global notbremse

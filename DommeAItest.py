@@ -12,14 +12,6 @@ from matplotlib import pyplot, colors
 import websockets
 from copy import deepcopy
 
-# TODO alles optimieren->höhere Tiefe möglich
-# TODO alles aufhübschen (keine Prio)
-# TODO evtl: teilweise berechnete Ebenen mit Durchschnitt berechnen lassen (keine Prio)
-# TODO Evtl. im Endgame langsame Geschwindigkeit bevorzugen
-# TODO Berechnung abbrechen, wenn nur noch eine Möglichkeit auf der Ebene (Optimierung für Machine Learning etc)
-# TODO / Problem: Domme merkt zu spät, wenn er in eine Sackgasse geht - evtl Sprünge größer gewichten?
-# TODO evtl: Counter an berechneten Möglichkeiten zum Debuggen der Effizienz einbauen
-
 global ebene
 global notbremse
 global q
