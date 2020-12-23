@@ -126,6 +126,8 @@ def anzeige(state, counter, action, choices, depth):
     youy = str(state["players"][str(state["you"])]["y"])
     youdir = str(state["players"][str(state["you"])]["direction"])
     youspeed = str(state["players"][str(state["you"])]["speed"])
+    for i in range(0,5):
+        choices[i] = round(choices[i],2)
 
     board = state["cells"]  # Das Spielfeld als 2D Matrix
     w = max(state["width"] / 10, 5.8)  # Breite des GUI
