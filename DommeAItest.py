@@ -176,7 +176,6 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     #   Bei Jahreswechsel kann es zu Fehlern (zu kurzen Berechnungen) kommen..
     #   Auch so kann es sein, dass die ersten Berechnungen noch durchkommen, der Rest aber nicht mehr
 
-
     # Wenn weniger als eine Sekunde bis zur Deadline verbleibt, bearbeite die Queue nicht weiter
     if time.time() + 1 > deadline:
         notbremse = True
@@ -208,8 +207,8 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                         break
                     newboard[newyy][newxx] = 7
                 if not hit:
-                    clearsd = True
-                    ebene[depth][action] += wert
+                    with lock_objekt:
+                        ebene[depth][action] += wert
                     q.put((checkchoices, [newx, newy, direction, newboard, speed - 1, width, height, wert / 2,
                                           depth + 1, counter + 1, deadline, action]))
 
@@ -237,8 +236,8 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                     break
                 newboard[newyy][newxx] = 7
             if not hit:
-                clearcn = True
-                ebene[depth][action] += wert
+                with lock_objekt:
+                    ebene[depth][action] += wert
                 q.put((checkchoices, [newx, newy, direction, newboard, speed, width, height, wert / 2,
                                       depth + 1, counter + 1, deadline, action]))
 
@@ -268,7 +267,8 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                         break
                     newboard[newyy][newxx] = 7
                 if not hit:
-                    ebene[depth][action] += wert
+                    with lock_objekt:
+                        ebene[depth][action] += wert
                     q.put((checkchoices, [newx, newy, direction, newboard, speed + 1, width, height, wert / 2,
                                           depth + 1, counter + 1, deadline, action]))
 
@@ -296,7 +296,8 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                         break
                     newboard[newyy][newxx] = 7
                 if not hit:
-                    ebene[depth][action] += wert
+                    with lock_objekt:
+                        ebene[depth][action] += wert
                     q.put((checkchoices, [newx, newy, newdirection, newboard, speed, width, height, wert / 2,
                                           depth + 1, counter + 1, deadline, action]))
     # lock_objekt.release()
@@ -321,7 +322,7 @@ def play():
     show = True  # Bestimmt, ob das GUI angezeigt wird
 
     # state_json = await websocket.recv()
-    state = {'width': 68, 'height': 47, 'cells': [
+    state2 = {'width': 68, 'height': 47, 'cells': [
         [
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [
@@ -423,6 +424,11 @@ def play():
                  '3': {'x': 51, 'y': 22, 'direction': 'up', 'speed': 1, 'active': True},
                  '4': {'x': 26, 'y': 45, 'direction': 'up', 'speed': 1, 'active': True}},
              'you': 4, 'running': True, 'deadline': '2020-12-22T15:06:40Z'}
+    state = {'width': 100, 'height': 100, 'cells': [[0] * 100] * 100,
+              'players': {
+                  '1': {'x': 50, 'y': 50, 'direction': 'down', 'speed': 1, 'active': True}
+              },
+              'you': 1, 'running': True, 'deadline': '2020-12-22T15:06:40Z'}
     # print("<", state)
     # print("Startzeit: " + str(datetime.utcnow()))
     own_player = state["players"][str(state["you"])]
@@ -448,7 +454,7 @@ def play():
     clearcn = False
     notbremse = False
     lock_objekt = threading.Lock()
-    deadline = time.time()+15
+    deadline = time.time() + 15
 
     # Erstelle ein Board mit allen möglichen Zügen der aktiven Gegner, um Überschneidungen im nächsten Schritt
     # zu verhindern. Berücksichtigt nur Züge, bei denen der Gegner nicht außerhalb des Feldes landet
@@ -478,7 +484,8 @@ def play():
                     board[newyy][newxx] = 7
                 if not hit:
                     clearsd = True
-                    ebene[depth][1] += wert
+                    with lock_objekt:
+                        ebene[depth][1] += wert
                     q.put((checkchoices, [newx, newy, own_player["direction"], board,
                                           own_player["speed"] - 1, state["width"],
                                           state["height"], wert / 2, depth + 1, counter + 1, deadline, 1]))
@@ -509,7 +516,8 @@ def play():
                 board[newyy][newxx] = 7
             if not hit:
                 clearcn = True
-                ebene[depth][2] += wert
+                with lock_objekt:
+                    ebene[depth][2] += wert
                 q.put((checkchoices, [newx, newy, own_player["direction"], board,
                                       own_player["speed"], state["width"], state["height"], wert / 2,
                                       depth + 1, counter + 1, deadline, 2]))
@@ -541,7 +549,8 @@ def play():
                     board[newyy][newxx] = 7
 
                 if not hit:
-                    ebene[depth][0] += wert
+                    with lock_objekt:
+                        ebene[depth][0] += wert
                     q.put((checkchoices, [newx, newy, own_player["direction"],
                                           board, own_player["speed"] + 1, state["width"],
                                           state["height"], wert / 2, depth + 1, counter + 1, deadline, 0]))
@@ -569,7 +578,8 @@ def play():
                     break
                 board[newyy][newxx] = 7
             if not hit:
-                ebene[depth][3] += wert
+                with lock_objekt:
+                    ebene[depth][3] += wert
                 q.put((checkchoices, [newx, newy, newdirection, board,
                                       own_player["speed"], state["width"], state["height"],
                                       wert / 2, depth + 1, counter + 1, deadline, 3]))
@@ -597,15 +607,17 @@ def play():
                     break
                 board[newyy][newxx] = 7
             if not hit:
-                ebene[depth][4] += wert
+                with lock_objekt:
+                    ebene[depth][4] += wert
                 q.put((checkchoices, [newx, newy, newdirection, board,
                                       own_player["speed"], state["width"], state["height"],
                                       wert / 2, depth + 1, counter + 1, deadline, 4]))
     # lock_objekt.release()
     # Bearbeite solange Objekte aus der Queue bis diese leer ist oder 1 Sekunde bis zur Deadline verbleibt
     while not q.empty() and not notbremse:
-        f, args = q.get()
-        f(*args)
+        f, a = q.get()
+        t = threading.Thread(target=f,args=a)
+        t.start()
 
     # Züge, die tiefere Ebenen erreichen, werden deutlich bevorzugt (+100)
     print(ebene)
@@ -637,6 +649,8 @@ def play():
     print(">", action)
     if show:  # GUI, falls show == True
         anzeige(state, counter, action, choices, myc - 1)
+
+
 #         await websocket.send(action_json)
 #
 #
