@@ -118,6 +118,33 @@ def gegnerboard(state,sprung):
     return boardenemies
 
 
+def distanz(state, direction):
+    board = state["cells"]
+    width = state["width"]
+    height = state["height"]
+    own_player = state["players"][str(state["you"])]
+    px = own_player["x"]
+    py = own_player["y"]
+    dis = -1
+    if direction == "up":
+        while py >= 0 and board[py][px] == 0:
+            py -= 1
+            dis += 1
+    elif direction == "down":
+        while py < height and board[py][px] == 0:
+            py += 1
+            dis += 1
+    elif direction == "right":
+        while px < width and board[py][px] == 0:
+            px += 1
+            dis += 1
+    else:
+        while px >= 0 and board[py][px] == 0:
+            px -= 1
+            dis += 1
+    return dis
+
+
 def anzeige(state, counter, action, choices, depth):
     # Informationen über den aktuellen Stand des eigenen Spielers
     youx = str(state["players"][str(state["you"])]["x"])
@@ -199,7 +226,7 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     clearcn = False
 
     sprung = False
-    if counter & 6 == 0:
+    if counter % 6 == 0:
         sprung = True
 
     # check-slowdown
@@ -380,6 +407,11 @@ async def play():
             m = int(state["deadline"][14:16])
             s = int(state["deadline"][17:19])
             deadline = (((mo * 30 + t) * 24 + h) * 60 + m) * 60 + s
+
+            # Prüfe Abstand nach Vorne, Links und Rechts
+            vorne = distanz(state, own_player["direction"])
+            links = distanz(state, getnewdirection(own_player["direction"], "left"))
+            rechts = distanz(state, getnewdirection(own_player["direction"], "right"))
 
             # Erstelle ein Board mit allen möglichen Zügen der aktiven Gegner, um Überschneidungen im nächsten Schritt
             # zu verhindern. Berücksichtigt nur Züge, bei denen der Gegner nicht außerhalb des Feldes landet
