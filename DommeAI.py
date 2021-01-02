@@ -18,9 +18,9 @@ from copy import deepcopy
 # TODO Berechnung abbrechen, wenn nur noch eine Möglichkeit auf der Ebene (Optimierung für Machine Learning etc)
 # TODO / Problem: Domme merkt zu spät, wenn er in eine Sackgasse geht - evtl Sprünge größer gewichten?
 # TODO evtl: Counter an berechneten Möglichkeiten zum Debuggen der Effizienz einbauen
-# TODO Optimierung für sd->cn->su
 # TODO Platz nach vorne/links/rechts checken und optimieren
 # TODO Sprünge bevorzugen, wenn das Maximum des Platzes nach vorne kleiner als x
+# TODO Wenn alle choices 0 dann nochmal prüfen und nicht zufall (bei len(randy) > 1)
 
 global ebene
 global notbremse
@@ -193,6 +193,39 @@ def anzeige(state, counter, action, choices, depth):
         pyplot.show(block=False)
 
 
+def checkdistance(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, distance):
+    global ebene
+    global q
+    global notbremse
+    global myc
+    global lock_objekt
+
+    myc = depth
+
+    if not len(ebene) > depth:
+        ebene.append([0, 0, 0, 0, 0])
+
+    # ist es evtl im nächsten Schritt möglich? -> CD
+    if distance > speed+1:
+        # ebene += ..., etc
+        # add to Queue: SU, CN, SD (CheckDistance)
+        # board und cd werte jeweils aktualisieren
+
+        # checkleft, checkright
+
+    #ist es in diesem Schritt möglich? -> CC
+    elif distance == speed+1:
+        # ebene += ..., etc
+        # add to Queue: SU, CN, SD (CheckChoices)
+        # board und cc werte jeweils aktualisieren
+
+        # checkleft, checkright
+
+    # wenn in der Distanz nicht möglich -> CC um mögloiche Sprünge / left / right zu checken
+    else:
+        checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action)
+
+
 def checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action):
     global ebene
     global q
@@ -363,7 +396,7 @@ async def play():
     url = "wss://msoll.de/spe_ed"
     key = open(filename, "r").read().strip()
 
-    async with websockets.connect(f"{url}?key={key}",ping_interval=None) as websocket:
+    async with websockets.connect(f"{url}?key={key}") as websocket:
         print("Waiting for initial state...", flush=True)
         counter = 0
         choices_actions = ["speed_up", "slow_down", "change_nothing", "turn_left", "turn_right"]
@@ -389,6 +422,7 @@ async def play():
                 break
 
             # Initialisierung
+            myc = 0
             sprung = False
             depth = 0
             counter += 1
