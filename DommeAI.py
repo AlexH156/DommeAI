@@ -2,7 +2,6 @@
 
 import asyncio
 import random
-import threading
 from datetime import datetime
 import json
 from queue import Queue
@@ -26,7 +25,146 @@ global ebene
 global notbremse
 global q
 global myc
-global lock_objekt
+
+
+def checkColl(input):
+    #print("input:", input)
+
+    rChoices = input[:]
+    rChoices.append(4)
+    lChoices = input[:]
+    lChoices.append(3)
+    sChoices = input[:]
+
+    leftColl = 0
+    rightColl = 0
+    straightColl = 0
+
+    # drei Rechtskurven hintereinander
+    if rChoices.count(4) > 2:
+        for i in range(len(rChoices)-2):
+            if rChoices[i] == 4:
+                if rChoices[i+1] == 4:
+                    if rChoices[i+2] == 4:
+                        rightColl = 1
+                        #print ("Kollission rechts:", rChoices)
+                        break
+
+        # mögliche Kollision rechts
+        if rightColl == 0:
+            for i in range(len(rChoices) - 2):
+                if rChoices[i] == 4:
+                    rCount = 1
+                    for ii in range(i+1, len(rChoices)-1):
+                        if rChoices[ii] == 3:
+                            break
+                        elif rChoices[ii] == 4:
+                            rCount += 1
+                            for iii in range(ii+1, len(rChoices)):
+                                if rChoices[iii] == 3:
+                                    rCount -= 1
+                                if rChoices[iii] == 4:
+                                    rCount += 1
+                                if rCount == 0:
+                                    break
+                            if rCount >= 3:
+                                 rightColl = 2
+                                 #print("mögliche Kollission rechts:", rChoices, "von", i, "bis", iii)
+                                 # break
+                        if rightColl == 2:
+                            break
+                if rightColl == 2:
+                    break
+
+    # drei Linkskurven hintereinander
+    if lChoices.count(3) > 2:
+        if rightColl != 1:
+            for i in range(len(lChoices)-2):
+                if lChoices[i] == 3:
+                    if lChoices[i+1] == 3:
+                        if lChoices[i+2] == 3:
+                            leftColl = 1
+                            #print ("Kollission links:", lChoices)
+                            break
+
+        # mögliche Kollision links
+        if leftColl == 0:
+            for i in range(len(lChoices) - 2):
+                if lChoices[i] == 3:
+                    lCount = 1
+                    for ii in range(i+1, len(lChoices)-1):
+                        if lChoices[ii] == 4:
+                            break
+                        elif lChoices[ii] == 3:
+                            lCount += 1
+                            for iii in range(ii+1, len(lChoices)):
+                                if lChoices[iii] == 4:
+                                    lCount -= 1
+                                if lChoices[iii] == 3:
+                                    lCount += 1
+                                if lCount == 0:
+                                    break
+                            if lCount >= 3:
+                                leftColl = 2
+                                #print("mögliche Kollission links:", lChoices, "von", i, "bis", iii)
+                                break
+                        if leftColl == 2:
+                            break
+                if leftColl == 2:
+                    break
+
+    #mögliche Kollision ohne Richtungswechsel prüfen
+    if leftColl != 0 or rightColl != 0:
+        #print("straightColl wird überprüft")
+
+        for i in range(len(sChoices) - 2):
+            if sChoices[i] == 4:
+                sCount = 1
+                for ii in range(i+1, len(sChoices)-1):
+                    if sChoices[ii] == 3:
+                        break
+                    elif sChoices[ii] == 4:
+                        sCount += 1
+                        for iii in range(ii+1, len(sChoices)):
+                            if sCount == 0:
+                                break
+                            if sChoices[iii] == 3:
+                                sCount -= 1
+                            if sChoices[iii] == 4:
+                                sCount += 1
+                        if sCount >= 3:
+                            straightColl = 2
+                            #print("mögliche Kollission vorne:", sChoices, "von", i, "bis", iii)
+                            break
+                    if straightColl == 2:
+                        break
+
+            elif sChoices[i] == 3:
+                sCount = 1
+                for ii in range(i+1, len(sChoices)-1):
+                    if sChoices[ii] == 4:
+                        break
+                    elif sChoices[ii] == 3:
+                        sCount += 1
+                        for iii in range(ii+1, len(sChoices)):
+                            if sChoices[iii] == 4:
+                                sCount -= 1
+                            if sChoices[iii] == 3:
+                                sCount += 1
+                            if sCount == 0:
+                                break
+                        if sCount >= 3:
+                            straightColl = 2
+                            #print("mögliche Kollission vorne:", sChoices, "von", i, "bis", iii)
+                            break
+                    if straightColl == 2:
+                        break
+
+            if straightColl == 2:
+                break
+
+    #print("Ergebnis:", leftColl, rightColl, straightColl)
+    return leftColl, rightColl, straightColl
 
 
 def getnewdirection(direction, change):  # bestimme neue Richtung nach Wechsel
@@ -59,62 +197,58 @@ def getnewpos(x, y, s, direction):  # bestimme neue Position
         return y, x + s
 
 
-def gegnerboard(state,sprung):
+# Diese Methode trägt alle legalen Züge der Gegner ein, um Überschneidungen zu vermeiden.
+def gegnerboard(state, sprung):
     boardenemies = deepcopy(state["cells"])
-
-    # Noch nicht alles perfekt. Prüft nicht ob er in sich selbst rein crashen würde.
-    # Würde es aus performancegründen auch nicht reinbringen (so bleibt unsere Schlange sehr defensiv)
-
+    # TODO: prüfen, ob deepcopy nötig. Evtl einfach state["cells"] benutzen (überschreibst das das ursprüngliche?)
     # Gehe durch alle Spieler die noch aktiv sind
     for p in range(1, int(len(state["players"]) + 1)):
-        if state["players"][str(p)]["active"]:
-            if not state["you"] == p:
-
-                #   Prüfe erst ob bei Verlangsamung überleben würde, trage ein, dann CN prüfen und eintragen,
-                #   als letztes Beschleinigung prüfen und eintragen (Beachte nicht Sonderfall der 6.ten Runde)
-                pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                    state["players"][str(p)]["speed"] - 1, state["players"][str(p)]["direction"])
-                # Prüfe ob er das Spielfeld verlassen würde, wenn verlangsamt
-                if state["height"] - 1 >= pnewy >= 0 and state["width"] - 1 >= pnewx >= 0:
+        if state["players"][str(p)]["active"] and not state["you"] == p:
+            # Prüfe erst ob bei Verlangsamung überleben würde, trage ein, dann CN prüfen und eintragen,
+            # als letztes Beschleinigung prüfen und eintragen (Beachte nicht Sonderfall der 6.ten Runde)
+            pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
+                                     state["players"][str(p)]["speed"] - 1, state["players"][str(p)]["direction"])
+            # Prüfe ob er das Spielfeld verlassen würde, wenn verlangsamt
+            if state["height"] > pnewy >= 0 and state["width"] > pnewx >= 0:
+                boardenemies[pnewy][pnewx] = 7
+                for i in range(1, state["players"][str(p)]["speed"] - 1):
+                    if sprung:
+                        pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
+                                                 1, state["players"][str(p)]["direction"])
+                        boardenemies[pnewy][pnewx] = 7
+                        break
+                    pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
+                                             i, state["players"][str(p)]["direction"])
                     boardenemies[pnewy][pnewx] = 7
-                    for i in range(1, state["players"][str(p)]["speed"] - 1):
+                pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
+                                         state["players"][str(p)]["speed"], state["players"][str(p)]["direction"])
+                # Prüfe ob er das Spielfeld verlassen würde, wenn nichts macht
+                if state["height"] > pnewy >= 0 and state["width"] > pnewx >= 0:
+                    boardenemies[pnewy][pnewx] = 7
+                    pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
+                                             state["players"][str(p)]["speed"] + 1,
+                                             state["players"][str(p)]["direction"])
+                    # Prüfe ob er das Spielfeld verlassen würde, wenn beschleunigt
+                    if state["height"] > pnewy >= 0 and state["width"] > pnewx >= 0:
+                        boardenemies[pnewy][pnewx] = 7
+
+            # Prüfe ob bei links/rechts außerhalb des Spielfeldes, sonst trage ein
+            for newd in ["left", "right"]:
+                newdirection = getnewdirection(state["players"][str(p)]["direction"], newd)
+                pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
+                                         state["players"][str(p)]["speed"], newdirection)
+                # Prüfe ob er das Spielfeld verlassen würde, wenn links/rechts
+                if state["height"] > pnewy >= 0 and state["width"] > pnewx >= 0:
+                    boardenemies[pnewy][pnewx] = 7
+                    for i in range(1, state["players"][str(p)]["speed"]):
                         if sprung:
                             pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                                     1, state["players"][str(p)]["direction"])
+                                                     1, newdirection)
                             boardenemies[pnewy][pnewx] = 7
                             break
                         pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                            i, state["players"][str(p)]["direction"])
+                                                 i, newdirection)
                         boardenemies[pnewy][pnewx] = 7
-                    pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                        state["players"][str(p)]["speed"], state["players"][str(p)]["direction"])
-                    # Prüfe ob er das Spielfeld verlassen würde, wenn nichts macht
-                    if state["height"] - 1 >= pnewy >= 0 and state["width"] - 1 >= pnewx >= 0:
-                        boardenemies[pnewy][pnewx] = 7
-                        pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                            state["players"][str(p)]["speed"] + 1,
-                                            state["players"][str(p)]["direction"])
-                        # Prüfe ob er das Spielfeld verlassen würde, wenn beschleunigt
-                        if state["height"] - 1 >= pnewy >= 0 and state["width"] - 1 >= pnewx >= 0:
-                            boardenemies[pnewy][pnewx] = 7
-
-                # Prüfe ob bei links/rechts außerhalb des Spielfeldes, sonst trage ein
-                for newd in ["left", "right"]:
-                    newdirection = getnewdirection(state["players"][str(p)]["direction"], newd)
-                    pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                        state["players"][str(p)]["speed"], newdirection)
-                    # Prüfe ob er das Spielfeld verlassen würde, wenn links/rechts
-                    if state["height"] - 1 >= pnewy >= 0 and state["width"] - 1 >= pnewx >= 0:
-                        boardenemies[pnewy][pnewx] = 7
-                        for i in range(1, state["players"][str(p)]["speed"]):
-                            if sprung:
-                                pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                                         1, newdirection)
-                                boardenemies[pnewy][pnewx] = 7
-                                break
-                            pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                                i, newdirection)
-                            boardenemies[pnewy][pnewx] = 7
     return boardenemies
 
 
@@ -151,8 +285,8 @@ def anzeige(state, counter, action, choices, depth):
     youy = str(state["players"][str(state["you"])]["y"])
     youdir = str(state["players"][str(state["you"])]["direction"])
     youspeed = str(state["players"][str(state["you"])]["speed"])
-    for i in range(0,5):
-        choices[i] = round(choices[i],2)
+    for i in range(0, 5):
+        choices[i] = round(choices[i], 2)
 
     board = state["cells"]  # Das Spielfeld als 2D Matrix
     w = max(state["width"] / 10, 5.8)  # Breite des GUI
@@ -189,7 +323,8 @@ def anzeige(state, counter, action, choices, depth):
         pyplot.yticks([])  #
         pyplot.xlabel("x: " + youx + " y: " + youy + " | direction: " + youdir + " | speed: " + youspeed +
                       "\n" + str(choices) +
-                      "\n"+"nächster Zug: "+str(action)+"  |  Tiefe: "+str(depth)+" | Jump in T - "+str(5-((counter-2) % 6)))
+                      "\n" + "nächster Zug: " + str(action) + "  |  Tiefe: " + str(depth) + " | Jump in T - " + str(
+            5 - ((counter - 2) % 6)))
         pyplot.show(block=False)
 
 
@@ -198,7 +333,6 @@ def checkdistance(x, y, direction, board, speed, width, height, wert, depth, cou
     global q
     global notbremse
     global myc
-    global lock_objekt
 
     myc = depth
 
@@ -206,33 +340,38 @@ def checkdistance(x, y, direction, board, speed, width, height, wert, depth, cou
         ebene.append([0, 0, 0, 0, 0])
 
     # ist es evtl im nächsten Schritt möglich? -> CD
-    if distance > speed+1:
-        # ebene += ..., etc
-        # add to Queue: SU, CN, SD (CheckDistance)
-        # board und cd werte jeweils aktualisieren
+    # if distance > speed+1:
+    # ebene += ..., etc
+    # add to Queue: SU, CN, SD (CheckDistance)
+    # board und cd werte jeweils aktualisieren
 
-        # checkleft, checkright
+    # checkleft, checkright
 
-    #ist es in diesem Schritt möglich? -> CC
-    elif distance == speed+1:
-        # ebene += ..., etc
-        # add to Queue: SU, CN, SD (CheckChoices)
-        # board und cc werte jeweils aktualisieren
+    # ist es in diesem Schritt möglich? -> CC
+    # elif distance == speed+1:
+    # ebene += ..., etc
+    # add to Queue: SU, CN, SD (CheckChoices)
+    # board und cc werte jeweils aktualisieren
 
-        # checkleft, checkright
+    # checkleft, checkright
 
     # wenn in der Distanz nicht möglich -> CC um mögloiche Sprünge / left / right zu checken
     else:
         checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action)
 
 
-def checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action):
+def checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord,
+                 actionlist):
     global ebene
     global q
     global notbremse
     global myc
-    global lock_objekt
 
+    actionlist.append(action)
+    leftcoll, rightcoll, straightcoll = checkColl(actionlist)
+    #   0 = alles frei
+    #   1 = block/coll
+    #   2 = überprüfen
     myc = depth
 
     if not len(ebene) > depth:
@@ -254,7 +393,7 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
         notbremse = True
         return
 
-    # werden verwendet, um Ressourcen bei zu schonen, da nurnoch Kopf geprüft werden muss, wenn voriges geprüft wurde
+    # werden verwendet, um Ressourcen zu schonen, da nurnoch Kopf geprüft werden muss, wenn voriges geprüft wurde
     clearsd = False
     clearcn = False
 
@@ -263,126 +402,150 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
         sprung = True
 
     # check-slowdown
-    newboard = deepcopy(board)
-    if speed > 1:
+    newcoord = coord[:]
+    if speed > 1 and straightcoll != 1:
         newy, newx = getnewpos(x, y, speed - 1, direction)
-        if height - 1 >= newy >= 0 and width - 1 >= newx >= 0:  # Prüfe ob er das Spielfeld verlassen würde
-            if board[newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
-                newboard[newy][newx] = 7
-                hit = False
-                for i in range(1, speed - 1):
-                    if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
-                        newyy, newxx = getnewpos(x, y, 1, direction)
-                        if not board[newyy][newxx] == 0:
-                            hit = True
-                            break
-                        newboard[newyy][newxx] = 7
-                        break
-                    newyy, newxx = getnewpos(x, y, i, direction)
-                    if not board[newyy][newxx] == 0:
-                        hit = True
-                        break
-                    newboard[newyy][newxx] = 7
-                if not hit:
-                    clearsd = True
-                    # with lock_objekt:
-                    ebene[depth][action] += wert
-                    q.put((checkchoices, [newx, newy, direction, newboard, speed - 1, width, height, wert / 2,
-                                          depth + 1, counter + 1, deadline, action]))
-
-    # check-nothing
-    if not clearsd:
-        newboard = deepcopy(board)
-    else:
-        newboard = deepcopy(newboard)
-    newy, newx = getnewpos(x, y, speed, direction)
-    if height - 1 >= newy >= 0 and width - 1 >= newx >= 0:  # Prüfe ob er das Spielfeld verlassen würde
-        if board[newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
-            newboard[newy][newx] = 7
+        # Prüfe ob er das Spielfeld verlassen würde und ob am neuen Kopf eine Schlange ist
+        if height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
             hit = False
-            for i in range(1, speed):
-                if clearsd:
+            if straightcoll == 2 and [newy, newx] in coord:
+                hit = True
+            newcoord.append([newy, newx])
+            for i in range(1, speed - 1):
+                if hit:
                     break
                 if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
                     newyy, newxx = getnewpos(x, y, 1, direction)
-                    if not board[newyy][newxx] == 0:
+                    if board[newyy][newxx] != 0 or (straightcoll == 2 and [newyy, newxx] in coord):
                         hit = True
                         break
-                    newboard[newyy][newxx] = 7
+                    newcoord.append([newyy, newxx])
                     break
                 newyy, newxx = getnewpos(x, y, i, direction)
-                if not board[newyy][newxx] == 0:
+                if board[newyy][newxx] != 0 or (straightcoll == 2 and [newyy, newxx] in coord):
                     hit = True
                     break
-                newboard[newyy][newxx] = 7
+                newcoord.append([newyy, newxx])
             if not hit:
-                clearcn = True
-                # with lock_objekt:
+                clearsd = True
                 ebene[depth][action] += wert
-                q.put((checkchoices, [newx, newy, direction, newboard, speed, width, height, wert / 2,
-                                      depth + 1, counter + 1, deadline, action]))
+                q.put((checkchoices, [newx, newy, direction, board, speed - 1, width, height, wert / 2,
+                                      depth + 1, counter + 1, deadline, action, newcoord, actionlist]))
+
+    # check-nothing
+    newcoord = coord[:]
+    newy, newx = getnewpos(x, y, speed, direction)
+    if straightcoll != 1 and height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
+        hit = False
+        if straightcoll == 2 and [newy, newx] in coord:
+            hit = True
+        newcoord.append([newy, newx])
+        for i in range(1, speed):
+            if clearsd or hit:
+                break
+            if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
+                newyy, newxx = getnewpos(x, y, 1, direction)
+                if board[newyy][newxx] != 0 or (straightcoll == 2 and [newyy, newxx] in coord):
+                    hit = True
+                    break
+                newcoord.append([newyy, newxx])
+                break
+            newyy, newxx = getnewpos(x, y, i, direction)
+            if board[newyy][newxx] != 0 or (straightcoll == 2 and [newyy, newxx] in coord):
+                hit = True
+                break
+            newcoord.append([newyy, newxx])
+        if not hit:
+            clearcn = True
+            ebene[depth][action] += wert
+            q.put((checkchoices, [newx, newy, direction, board, speed, width, height, wert / 2,
+                                  depth + 1, counter + 1, deadline, action, newcoord, actionlist]))
 
     # check-speedup
-    if not clearcn:
-        newboard = deepcopy(board)
-    else:
-        newboard = deepcopy(newboard)
-    if speed < 10:
-        newy, newx = getnewpos(x, y, speed + 1, direction)
-        if height - 1 >= newy >= 0 and width - 1 >= newx >= 0:  # Prüfe ob er das Spielfeld verlassen würde
-            if board[newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
-                hit = False
-                newboard[newy][newx] = 7
-                for i in range(1, speed + 1):
-                    if clearcn:
-                        break
-                    if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
-                        newyy, newxx = getnewpos(x, y, 1, direction)
-                        if not board[newyy][newxx] == 0:
-                            hit = True
-                            break
-                        newboard[newyy][newxx] = 7
-                        break
-                    newyy, newxx = getnewpos(x, y, i, direction)
+    newcoord = coord[:]
+    newy, newx = getnewpos(x, y, speed + 1, direction)
+    if speed < 10 and straightcoll != 1 and height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
+        hit = False
+        if straightcoll == 2 and [newy, newx] in coord:
+            hit = True
+        newcoord.append([newy, newx])
+        for i in range(1, speed + 1):
+            if clearcn or hit:
+                break
+            if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
+                newyy, newxx = getnewpos(x, y, 1, direction)
+                if board[newyy][newxx] != 0 or (straightcoll == 2 and [newyy, newxx] in coord):
+                    hit = True
+                    break
+                newcoord.append([newyy, newxx])
+                break
+            newyy, newxx = getnewpos(x, y, i, direction)
+            if board[newyy][newxx] != 0 or (straightcoll == 2 and [newyy, newxx] in coord):
+                hit = True
+                break
+            newcoord.append([newyy, newxx])
+        if not hit:
+            ebene[depth][action] += wert
+            q.put((checkchoices, [newx, newy, direction, board, speed + 1, width, height, wert / 2,
+                                  depth + 1, counter + 1, deadline, action, newcoord, actionlist]))
 
-                    if not board[newyy][newxx] == 0:
-                        hit = True
-                        break
-                    newboard[newyy][newxx] = 7
-                if not hit:
-                    # with lock_objekt:
-                    ebene[depth][action] += wert
-                    q.put((checkchoices, [newx, newy, direction, newboard, speed + 1, width, height, wert / 2,
-                                          depth + 1, counter + 1, deadline, action]))
+    # check-left
+    newcoord = coord[:]
+    newdirection = getnewdirection(direction, "left")
+    newy, newx = getnewpos(x, y, speed, newdirection)
+    if leftcoll != 1 and height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
+        hit = False
+        if leftcoll == 2 and [newy, newx] in coord:
+            hit = True
+        newcoord.append([newy, newx])
+        for i in range(1, speed):
+            if hit:
+                break
+            if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
+                newyy, newxx = getnewpos(x, y, 1, newdirection)
+                if board[newyy][newxx] != 0 or (leftcoll == 2 and [newyy, newxx] in coord):
+                    hit = True
+                    break
+                newcoord.append([newyy, newxx])
+                break
+            newyy, newxx = getnewpos(x, y, i, newdirection)
+            if board[newyy][newxx] != 0 or (leftcoll == 2 and [newyy, newxx] in coord):
+                hit = True
+                break
+            newcoord.append([newyy, newxx])
+        if not hit:
+            ebene[depth][action] += wert
+            q.put((checkchoices, [newx, newy, newdirection, board, speed, width, height, wert / 2,
+                                  depth + 1, counter + 1, deadline, action, newcoord, actionlist]))
 
-    # check-left and check-right
-    for newd in ["left", "right"]:
-        newboard = deepcopy(board)
-        newdirection = getnewdirection(direction, newd)
-        newy, newx = getnewpos(x, y, speed, newdirection)
-        if height - 1 >= newy >= 0 and width - 1 >= newx >= 0:  # Prüfe ob er das Spielfeld verlassen würde
-            if board[newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
-                newboard[newy][newx] = 7
-                hit = False
-                for i in range(1, speed):
-                    if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
-                        newyy, newxx = getnewpos(x, y, 1, newdirection)
-                        if not board[newyy][newxx] == 0:
-                            hit = True
-                            break
-                        newboard[newyy][newxx] = 7
-                        break
-                    newyy, newxx = getnewpos(x, y, i, newdirection)
-
-                    if not board[newyy][newxx] == 0:
-                        hit = True
-                        break
-                    newboard[newyy][newxx] = 7
-                if not hit:
-                    # with lock_objekt:
-                    ebene[depth][action] += wert
-                    q.put((checkchoices, [newx, newy, newdirection, newboard, speed, width, height, wert / 2,
-                                          depth + 1, counter + 1, deadline, action]))
+    # check-right
+    newcoord = coord[:]
+    newdirection = getnewdirection(direction, "right")
+    newy, newx = getnewpos(x, y, speed, newdirection)
+    if rightcoll != 1 and height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
+        hit = False
+        if rightcoll == 2 and [newy, newx] in coord:
+            hit = True
+        newcoord.append([newy, newx])
+        for i in range(1, speed):
+            if hit:
+                break
+            if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
+                newyy, newxx = getnewpos(x, y, 1, newdirection)
+                if board[newyy][newxx] != 0 or (rightcoll == 2 and [newyy, newxx] in coord):
+                    hit = True
+                    break
+                newcoord.append([newyy, newxx])
+                break
+            newyy, newxx = getnewpos(x, y, i, newdirection)
+            if board[newyy][newxx] != 0 or (rightcoll == 2 and [newyy, newxx] in coord):
+                hit = True
+                break
+            newcoord.append([newyy, newxx])
+        if not hit:
+            ebene[depth][action] += wert
+            q.put((checkchoices, [newx, newy, newdirection, board, speed, width, height, wert / 2,
+                                  depth + 1, counter + 1, deadline, action, newcoord, actionlist]))
 
 
 async def play():
@@ -390,12 +553,9 @@ async def play():
     global q
     global myc
     global notbremse
-    global lock_objekt
     filename = 'apikey.txt'
-
     url = "wss://msoll.de/spe_ed"
     key = open(filename, "r").read().strip()
-
     async with websockets.connect(f"{url}?key={key}") as websocket:
         print("Waiting for initial state...", flush=True)
         counter = 0
@@ -434,13 +594,17 @@ async def play():
             clearsd = False
             clearcn = False
             notbremse = False
-            lock_objekt = threading.Lock()
             mo = int(state["deadline"][5:7])
             t = int(state["deadline"][8:10])
             h = int(state["deadline"][11:13])
             m = int(state["deadline"][14:16])
             s = int(state["deadline"][17:19])
             deadline = (((mo * 30 + t) * 24 + h) * 60 + m) * 60 + s
+            coord0 = []
+            coord1 = []
+            coord2 = []
+            coord3 = []
+            coord4 = []
 
             # Prüfe Abstand nach Vorne, Links und Rechts
             vorne = distanz(state, own_player["direction"])
@@ -449,164 +613,146 @@ async def play():
 
             # Erstelle ein Board mit allen möglichen Zügen der aktiven Gegner, um Überschneidungen im nächsten Schritt
             # zu verhindern. Berücksichtigt nur Züge, bei denen der Gegner nicht außerhalb des Feldes landet
-            boardenemies = gegnerboard(state,sprung)
+            board = gegnerboard(state, sprung)
 
             # check-slowdown
-            board = deepcopy(boardenemies)
             if own_player["speed"] > 1:
-                newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"] - 1, own_player["direction"])
-                # Prüfe ob er das Spielfeld verlassen würde
-                if state["height"] - 1 >= newy >= 0 and state["width"] - 1 >= newx >= 0:
-                    if board[newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
-                        board[newy][newx] = 7
-                        hit = False
-                        for i in range(1, own_player["speed"] - 1):
-                            if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
-                                newyy, newxx = getnewpos(own_player["x"], own_player["y"], 1, own_player["direction"])
-                                if not board[newyy][newxx] == 0:
-                                    hit = True
-                                    break
-                                board[newyy][newxx] = 7
-                                break
-                            newyy, newxx = getnewpos(own_player["x"], own_player["y"], i, own_player["direction"])
+                newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"] - 1,
+                                       own_player["direction"])
+                # Prüfe ob er das Spielfeld verlassen würde und ob Schlange an den neuen Stelle sind
+                if state["height"] > newy >= 0 and state["width"] > newx >= 0 and board[newy][newx] == 0:
+                    hit = False
+                    coord0.append([newy, newx])
+                    for i in range(1, own_player["speed"] - 1):
+                        if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
+                            newyy, newxx = getnewpos(own_player["x"], own_player["y"], 1, own_player["direction"])
                             if not board[newyy][newxx] == 0:
                                 hit = True
                                 break
-                            board[newyy][newxx] = 7
-                        if not hit:
-                            clearsd = True
-                            # with lock_objekt:
-                            ebene[depth][1] += wert
-                            q.put((checkchoices, [newx, newy, own_player["direction"], board,
-                                                  own_player["speed"] - 1, state["width"],
-                                                  state["height"], wert / 2, depth + 1, counter + 1, deadline, 1]))
+                            coord0.append([newyy, newxx])
+                            break
+                        newyy, newxx = getnewpos(own_player["x"], own_player["y"], i, own_player["direction"])
+                        if not board[newyy][newxx] == 0:
+                            hit = True
+                            break
+                        coord0.append([newyy, newxx])
+                    if not hit:
+                        clearsd = True
+                        ebene[depth][1] += wert
+                        q.put((checkchoices, [newx, newy, own_player["direction"], board,
+                                              own_player["speed"] - 1, state["width"],
+                                              state["height"], wert / 2, depth + 1, counter + 1, deadline, 1, coord0,
+                                              []]))
 
             # check-nothing
-            if not clearsd:
-                board = deepcopy(boardenemies)
-            else:
-                board = deepcopy(board)
             newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"], own_player["direction"])
-            # Prüfe ob er das Spielfeld verlassen würde
-            if state["height"] - 1 >= newy >= 0 and state["width"] - 1 >= newx >= 0:
-                if board[newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
-                    board[newy][newx] = 7
+            # Prüfe ob er das Spielfeld verlassen würde, ob Schlange an den neuen Stelle sind
+            if state["height"] > newy >= 0 and state["width"] > newx >= 0 and board[newy][newx] == 0:
+                hit = False
+                coord1.append([newy, newx])
+                for i in range(1, own_player["speed"]):
+                    if clearsd:
+                        break
+                    if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
+                        newyy, newxx = getnewpos(own_player["x"], own_player["y"], 1, own_player["direction"])
+                        if not board[newyy][newxx] == 0:
+                            hit = True
+                            break
+                        coord1.append([newyy, newxx])
+                        break
+                    newyy, newxx = getnewpos(own_player["x"], own_player["y"], i, own_player["direction"])
+                    if not board[newyy][newxx] == 0:
+                        hit = True
+                        break
+                    coord1.append([newyy, newxx])
+                if not hit:
+                    clearcn = True
+                    ebene[depth][2] += wert
+                    q.put((checkchoices, [newx, newy, own_player["direction"], board,
+                                          own_player["speed"], state["width"], state["height"], wert / 2,
+                                          depth + 1, counter + 1, deadline, 2, coord1, []]))
+
+            # check-speedup
+            if own_player["speed"] < 10:
+                newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"] + 1,
+                                       own_player["direction"])
+                # Prüfe ob er das Spielfeld verlassen würde, ob Schlange an den neuen Stelle sind
+                if state["height"] > newy >= 0 and state["width"] > newx >= 0 and board[newy][newx] == 0:
                     hit = False
-                    for i in range(1, own_player["speed"]):
-                        if clearsd:
+                    coord2.append([newy, newx])
+                    for i in range(1, own_player["speed"] + 1):
+                        if clearcn:
                             break
                         if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
                             newyy, newxx = getnewpos(own_player["x"], own_player["y"], 1, own_player["direction"])
                             if not board[newyy][newxx] == 0:
                                 hit = True
                                 break
-                            board[newyy][newxx] = 7
+                            coord2.append([newyy, newxx])
                             break
                         newyy, newxx = getnewpos(own_player["x"], own_player["y"], i, own_player["direction"])
                         if not board[newyy][newxx] == 0:
                             hit = True
                             break
-                        board[newyy][newxx] = 7
+                        coord2.append([newyy, newxx])
                     if not hit:
-                        clearcn = True
-                        # with lock_objekt:
-                        ebene[depth][2] += wert
-                        q.put((checkchoices, [newx, newy, own_player["direction"], board,
-                                              own_player["speed"], state["width"], state["height"], wert / 2,
-                                              depth + 1, counter + 1, deadline, 2]))
-
-            # check-speedup
-            if not clearcn:
-                board = deepcopy(boardenemies)
-            else:
-                board = deepcopy(board)
-            if own_player["speed"] < 10:
-                newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"] + 1, own_player["direction"])
-                # Prüfe ob er das Spielfeld verlassen würde
-                if state["height"] - 1 >= newy >= 0 and state["width"] - 1 >= newx >= 0:
-                    if board[newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
-                        board[newy][newx] = 7
-                        hit = False
-                        for i in range(1, own_player["speed"] + 1):
-                            if clearcn:
-                                break
-                            if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
-                                newyy, newxx = getnewpos(own_player["x"], own_player["y"], 1, own_player["direction"])
-                                if not board[newyy][newxx] == 0:
-                                    hit = True
-                                    break
-                                board[newyy][newxx] = 7
-                                break
-                            newyy, newxx = getnewpos(own_player["x"], own_player["y"], i, own_player["direction"])
-                            if not board[newyy][newxx] == 0:
-                                hit = True
-                                break
-                            board[newyy][newxx] = 7
-
-                        if not hit:
-                            # with lock_objekt:
-                            ebene[depth][0] += wert
-                            q.put((checkchoices, [newx, newy, own_player["direction"],
-                                                  board, own_player["speed"] + 1, state["width"],
-                                                  state["height"], wert / 2, depth + 1, counter + 1, deadline, 0]))
+                        ebene[depth][0] += wert
+                        q.put((checkchoices, [newx, newy, own_player["direction"],
+                                              board, own_player["speed"] + 1, state["width"],
+                                              state["height"], wert / 2, depth + 1, counter + 1, deadline, 0, coord2,
+                                              []]))
 
             # check-left
-            board = deepcopy(boardenemies)
             newdirection = getnewdirection(own_player["direction"], "left")
             newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"], newdirection)
-            # Prüfe ob er das Spielfeld verlassen würde
-            if state["height"] - 1 >= newy >= 0 and state["width"] - 1 >= newx >= 0:
-                if board[newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
-                    board[newy][newx] = 7
-                    hit = False
-                    for i in range(1, own_player["speed"]):
-                        if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
-                            newyy, newxx = getnewpos(own_player["x"], own_player["y"], 1, newdirection)
-                            if not board[newyy][newxx] == 0:
-                                hit = True
-                                break
-                            board[newyy][newxx] = 7
-                            break
-                        newyy, newxx = getnewpos(own_player["x"], own_player["y"], i, newdirection)
+            # Prüfe ob er das Spielfeld verlassen würde, ob Schlange an den neuen Stelle sind
+            if state["height"] > newy >= 0 and state["width"] > newx >= 0 and board[newy][newx] == 0:
+                hit = False
+                coord3.append([newy, newx])
+                for i in range(1, own_player["speed"]):
+                    if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
+                        newyy, newxx = getnewpos(own_player["x"], own_player["y"], 1, newdirection)
                         if not board[newyy][newxx] == 0:
                             hit = True
                             break
-                        board[newyy][newxx] = 7
-                    if not hit:
-                        # with lock_objekt:
-                        ebene[depth][3] += wert
-                        q.put((checkchoices, [newx, newy, newdirection, board,
-                                              own_player["speed"], state["width"], state["height"],
-                                              wert / 2, depth + 1, counter + 1, deadline, 3]))
+                        coord3.append([newyy, newxx])
+                        break
+                    newyy, newxx = getnewpos(own_player["x"], own_player["y"], i, newdirection)
+                    if not board[newyy][newxx] == 0:
+                        hit = True
+                        break
+                    coord3.append([newyy, newxx])
+                if not hit:
+                    ebene[depth][3] += wert
+                    q.put((checkchoices, [newx, newy, newdirection, board,
+                                          own_player["speed"], state["width"], state["height"],
+                                          wert / 2, depth + 1, counter + 1, deadline, 3, coord3, []]))
 
             # check-right
-            board = deepcopy(boardenemies)
             newdirection = getnewdirection(own_player["direction"], "right")
             newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"], newdirection)
-            # Prüfe ob er das Spielfeld verlassen würde
-            if state["height"] - 1 >= newy >= 0 and state["width"] - 1 >= newx >= 0:
-                if board[newy][newx] == 0:  # Prüfe ob Schlange an den neuen Stelle sind
-                    board[newy][newx] = 7
-                    hit = False
-                    for i in range(1, own_player["speed"]):
-                        if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
-                            newyy, newxx = getnewpos(own_player["x"], own_player["y"], 1, newdirection)
-                            if not board[newyy][newxx] == 0:
-                                hit = True
-                                break
-                            board[newyy][newxx] = 7
-                            break
-                        newyy, newxx = getnewpos(own_player["x"], own_player["y"], i, newdirection)
+            # Prüfe ob er das Spielfeld verlassen würde, ob Schlange an den neuen Stelle sind
+            if state["height"] > newy >= 0 and state["width"] > newx >= 0 and board[newy][newx] == 0:
+                hit = False
+                coord4.append([newy, newx])
+                for i in range(1, own_player["speed"]):
+                    if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
+                        newyy, newxx = getnewpos(own_player["x"], own_player["y"], 1, newdirection)
                         if not board[newyy][newxx] == 0:
                             hit = True
                             break
-                        board[newyy][newxx] = 7
-                    if not hit:
-                        # with lock_objekt:
-                        ebene[depth][4] += wert
-                        q.put((checkchoices, [newx, newy, newdirection, board,
-                                              own_player["speed"], state["width"], state["height"],
-                                              wert / 2, depth + 1, counter + 1, deadline, 4]))
+                        coord4.append([newyy, newxx])
+                        break
+                    newyy, newxx = getnewpos(own_player["x"], own_player["y"], i, newdirection)
+                    if not board[newyy][newxx] == 0:
+                        hit = True
+                        break
+                    coord4.append([newyy, newxx])
+                if not hit:
+                    ebene[depth][4] += wert
+                    q.put((checkchoices, [newx, newy, newdirection, board,
+                                          own_player["speed"], state["width"], state["height"],
+                                          wert / 2, depth + 1, counter + 1, deadline, 4, coord4, []]))
 
             # Bearbeite solange Objekte aus der Queue bis diese leer ist oder 1 Sekunde bis zur Deadline verbleibt
             while not q.empty() and not notbremse:
@@ -618,7 +764,7 @@ async def play():
             for i in range(0, 5):
                 if myc > 0:
                     if ebene[myc - 1][i] != 0:
-                        ebene[0][i] += 100
+                        ebene[0][i] += 10000
 
             for i in range(0, myc):
                 for j in range(0, 5):
