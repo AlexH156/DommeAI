@@ -368,7 +368,6 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     global myc
 
     actionlist.append(action)
-    leftcoll, rightcoll, straightcoll = checkColl(actionlist)
     #   0 = alles frei
     #   1 = block/coll
     #   2 = überprüfen
@@ -403,12 +402,12 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
 
     # check-slowdown
     newcoord = coord[:]
-    if speed > 1 and straightcoll != 1:
+    if speed > 1:
         newy, newx = getnewpos(x, y, speed - 1, direction)
         # Prüfe ob er das Spielfeld verlassen würde und ob am neuen Kopf eine Schlange ist
         if height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
             hit = False
-            if straightcoll == 2 and [newy, newx] in coord:
+            if [newy, newx] in coord:
                 hit = True
             newcoord.append([newy, newx])
             for i in range(1, speed - 1):
@@ -416,13 +415,13 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                     break
                 if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
                     newyy, newxx = getnewpos(x, y, 1, direction)
-                    if board[newyy][newxx] != 0 or (straightcoll == 2 and [newyy, newxx] in coord):
+                    if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
                         hit = True
                         break
                     newcoord.append([newyy, newxx])
                     break
                 newyy, newxx = getnewpos(x, y, i, direction)
-                if board[newyy][newxx] != 0 or (straightcoll == 2 and [newyy, newxx] in coord):
+                if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
                     hit = True
                     break
                 newcoord.append([newyy, newxx])
@@ -435,9 +434,9 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     # check-nothing
     newcoord = coord[:]
     newy, newx = getnewpos(x, y, speed, direction)
-    if straightcoll != 1 and height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
+    if height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
         hit = False
-        if straightcoll == 2 and [newy, newx] in coord:
+        if [newy, newx] in coord:
             hit = True
         newcoord.append([newy, newx])
         for i in range(1, speed):
@@ -445,13 +444,13 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                 break
             if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
                 newyy, newxx = getnewpos(x, y, 1, direction)
-                if board[newyy][newxx] != 0 or (straightcoll == 2 and [newyy, newxx] in coord):
+                if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
                     hit = True
                     break
                 newcoord.append([newyy, newxx])
                 break
             newyy, newxx = getnewpos(x, y, i, direction)
-            if board[newyy][newxx] != 0 or (straightcoll == 2 and [newyy, newxx] in coord):
+            if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
                 hit = True
                 break
             newcoord.append([newyy, newxx])
@@ -464,9 +463,9 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     # check-speedup
     newcoord = coord[:]
     newy, newx = getnewpos(x, y, speed + 1, direction)
-    if speed < 10 and straightcoll != 1 and height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
+    if speed < 10 and height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
         hit = False
-        if straightcoll == 2 and [newy, newx] in coord:
+        if [newy, newx] in coord:
             hit = True
         newcoord.append([newy, newx])
         for i in range(1, speed + 1):
@@ -474,13 +473,13 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                 break
             if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
                 newyy, newxx = getnewpos(x, y, 1, direction)
-                if board[newyy][newxx] != 0 or (straightcoll == 2 and [newyy, newxx] in coord):
+                if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
                     hit = True
                     break
                 newcoord.append([newyy, newxx])
                 break
             newyy, newxx = getnewpos(x, y, i, direction)
-            if board[newyy][newxx] != 0 or (straightcoll == 2 and [newyy, newxx] in coord):
+            if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
                 hit = True
                 break
             newcoord.append([newyy, newxx])
@@ -493,9 +492,9 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     newcoord = coord[:]
     newdirection = getnewdirection(direction, "left")
     newy, newx = getnewpos(x, y, speed, newdirection)
-    if leftcoll != 1 and height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
+    if height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
         hit = False
-        if leftcoll == 2 and [newy, newx] in coord:
+        if [newy, newx] in coord:
             hit = True
         newcoord.append([newy, newx])
         for i in range(1, speed):
@@ -503,13 +502,13 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                 break
             if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
                 newyy, newxx = getnewpos(x, y, 1, newdirection)
-                if board[newyy][newxx] != 0 or (leftcoll == 2 and [newyy, newxx] in coord):
+                if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
                     hit = True
                     break
                 newcoord.append([newyy, newxx])
                 break
             newyy, newxx = getnewpos(x, y, i, newdirection)
-            if board[newyy][newxx] != 0 or (leftcoll == 2 and [newyy, newxx] in coord):
+            if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
                 hit = True
                 break
             newcoord.append([newyy, newxx])
@@ -522,9 +521,9 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     newcoord = coord[:]
     newdirection = getnewdirection(direction, "right")
     newy, newx = getnewpos(x, y, speed, newdirection)
-    if rightcoll != 1 and height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
+    if height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
         hit = False
-        if rightcoll == 2 and [newy, newx] in coord:
+        if [newy, newx] in coord:
             hit = True
         newcoord.append([newy, newx])
         for i in range(1, speed):
@@ -532,13 +531,13 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                 break
             if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
                 newyy, newxx = getnewpos(x, y, 1, newdirection)
-                if board[newyy][newxx] != 0 or (rightcoll == 2 and [newyy, newxx] in coord):
+                if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
                     hit = True
                     break
                 newcoord.append([newyy, newxx])
                 break
             newyy, newxx = getnewpos(x, y, i, newdirection)
-            if board[newyy][newxx] != 0 or (rightcoll == 2 and [newyy, newxx] in coord):
+            if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
                 hit = True
                 break
             newcoord.append([newyy, newxx])
