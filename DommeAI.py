@@ -2,11 +2,12 @@
 
 import asyncio
 import random
+import time
 from datetime import datetime
 import json
 from queue import Queue
 from matplotlib import pyplot, colors
-
+import dateutil.parser as dp
 import websockets
 from copy import deepcopy
 
@@ -20,6 +21,7 @@ from copy import deepcopy
 # TODO Platz nach vorne/links/rechts checken und optimieren
 # TODO Sprünge bevorzugen, wenn das Maximum des Platzes nach vorne kleiner als x
 # TODO Wenn alle choices 0 dann nochmal prüfen und nicht zufall (bei len(randy) > 1)
+# TODO In CheckChoices die Prüfungen zusammen fassen (Optik)
 
 global ebene
 global notbremse
@@ -28,7 +30,7 @@ global myc
 
 
 def checkColl(input):
-    #print("input:", input)
+    # print("input:", input)
 
     rChoices = input[:]
     rChoices.append(4)
@@ -42,12 +44,12 @@ def checkColl(input):
 
     # drei Rechtskurven hintereinander
     if rChoices.count(4) > 2:
-        for i in range(len(rChoices)-2):
+        for i in range(len(rChoices) - 2):
             if rChoices[i] == 4:
-                if rChoices[i+1] == 4:
-                    if rChoices[i+2] == 4:
+                if rChoices[i + 1] == 4:
+                    if rChoices[i + 2] == 4:
                         rightColl = 1
-                        #print ("Kollission rechts:", rChoices)
+                        # print ("Kollission rechts:", rChoices)
                         break
 
         # mögliche Kollision rechts
@@ -55,12 +57,12 @@ def checkColl(input):
             for i in range(len(rChoices) - 2):
                 if rChoices[i] == 4:
                     rCount = 1
-                    for ii in range(i+1, len(rChoices)-1):
+                    for ii in range(i + 1, len(rChoices) - 1):
                         if rChoices[ii] == 3:
                             break
                         elif rChoices[ii] == 4:
                             rCount += 1
-                            for iii in range(ii+1, len(rChoices)):
+                            for iii in range(ii + 1, len(rChoices)):
                                 if rChoices[iii] == 3:
                                     rCount -= 1
                                 if rChoices[iii] == 4:
@@ -68,9 +70,9 @@ def checkColl(input):
                                 if rCount == 0:
                                     break
                             if rCount >= 3:
-                                 rightColl = 2
-                                 #print("mögliche Kollission rechts:", rChoices, "von", i, "bis", iii)
-                                 # break
+                                rightColl = 2
+                                # print("mögliche Kollission rechts:", rChoices, "von", i, "bis", iii)
+                                # break
                         if rightColl == 2:
                             break
                 if rightColl == 2:
@@ -79,12 +81,12 @@ def checkColl(input):
     # drei Linkskurven hintereinander
     if lChoices.count(3) > 2:
         if rightColl != 1:
-            for i in range(len(lChoices)-2):
+            for i in range(len(lChoices) - 2):
                 if lChoices[i] == 3:
-                    if lChoices[i+1] == 3:
-                        if lChoices[i+2] == 3:
+                    if lChoices[i + 1] == 3:
+                        if lChoices[i + 2] == 3:
                             leftColl = 1
-                            #print ("Kollission links:", lChoices)
+                            # print ("Kollission links:", lChoices)
                             break
 
         # mögliche Kollision links
@@ -92,12 +94,12 @@ def checkColl(input):
             for i in range(len(lChoices) - 2):
                 if lChoices[i] == 3:
                     lCount = 1
-                    for ii in range(i+1, len(lChoices)-1):
+                    for ii in range(i + 1, len(lChoices) - 1):
                         if lChoices[ii] == 4:
                             break
                         elif lChoices[ii] == 3:
                             lCount += 1
-                            for iii in range(ii+1, len(lChoices)):
+                            for iii in range(ii + 1, len(lChoices)):
                                 if lChoices[iii] == 4:
                                     lCount -= 1
                                 if lChoices[iii] == 3:
@@ -106,26 +108,26 @@ def checkColl(input):
                                     break
                             if lCount >= 3:
                                 leftColl = 2
-                                #print("mögliche Kollission links:", lChoices, "von", i, "bis", iii)
+                                # print("mögliche Kollission links:", lChoices, "von", i, "bis", iii)
                                 break
                         if leftColl == 2:
                             break
                 if leftColl == 2:
                     break
 
-    #mögliche Kollision ohne Richtungswechsel prüfen
+    # mögliche Kollision ohne Richtungswechsel prüfen
     if leftColl != 0 or rightColl != 0:
-        #print("straightColl wird überprüft")
+        # print("straightColl wird überprüft")
 
         for i in range(len(sChoices) - 2):
             if sChoices[i] == 4:
                 sCount = 1
-                for ii in range(i+1, len(sChoices)-1):
+                for ii in range(i + 1, len(sChoices) - 1):
                     if sChoices[ii] == 3:
                         break
                     elif sChoices[ii] == 4:
                         sCount += 1
-                        for iii in range(ii+1, len(sChoices)):
+                        for iii in range(ii + 1, len(sChoices)):
                             if sCount == 0:
                                 break
                             if sChoices[iii] == 3:
@@ -134,19 +136,19 @@ def checkColl(input):
                                 sCount += 1
                         if sCount >= 3:
                             straightColl = 2
-                            #print("mögliche Kollission vorne:", sChoices, "von", i, "bis", iii)
+                            # print("mögliche Kollission vorne:", sChoices, "von", i, "bis", iii)
                             break
                     if straightColl == 2:
                         break
 
             elif sChoices[i] == 3:
                 sCount = 1
-                for ii in range(i+1, len(sChoices)-1):
+                for ii in range(i + 1, len(sChoices) - 1):
                     if sChoices[ii] == 4:
                         break
                     elif sChoices[ii] == 3:
                         sCount += 1
-                        for iii in range(ii+1, len(sChoices)):
+                        for iii in range(ii + 1, len(sChoices)):
                             if sChoices[iii] == 4:
                                 sCount -= 1
                             if sChoices[iii] == 3:
@@ -155,7 +157,7 @@ def checkColl(input):
                                 break
                         if sCount >= 3:
                             straightColl = 2
-                            #print("mögliche Kollission vorne:", sChoices, "von", i, "bis", iii)
+                            # print("mögliche Kollission vorne:", sChoices, "von", i, "bis", iii)
                             break
                     if straightColl == 2:
                         break
@@ -163,7 +165,7 @@ def checkColl(input):
             if straightColl == 2:
                 break
 
-    #print("Ergebnis:", leftColl, rightColl, straightColl)
+    # print("Ergebnis:", leftColl, rightColl, straightColl)
     return leftColl, rightColl, straightColl
 
 
@@ -200,7 +202,7 @@ def getnewpos(x, y, s, direction):  # bestimme neue Position
 # Diese Methode trägt alle legalen Züge der Gegner ein, um Überschneidungen zu vermeiden.
 def gegnerboard(state, sprung):
     boardenemies = deepcopy(state["cells"])
-    # TODO: prüfen, ob deepcopy nötig. Evtl einfach state["cells"] benutzen (überschreibst das das ursprüngliche?)
+    # TODO: prüfen, ob deepcopy nötig. Evtl einfach state["cells"] benutzen (überschreibt das das ursprüngliche?)
     # Gehe durch alle Spieler die noch aktiv sind
     for p in range(1, int(len(state["players"]) + 1)):
         if state["players"][str(p)]["active"] and not state["you"] == p:
@@ -367,10 +369,13 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     global notbremse
     global myc
 
-    actionlist.append(action)
-    #   0 = alles frei
-    #   1 = block/coll
-    #   2 = überprüfen
+    rightcoll = False
+    leftcoll = False
+    if len(actionlist) > 1:
+        if actionlist[len(actionlist) - 1] == 3 and actionlist[len(actionlist) - 2] == 3:
+            leftcoll = True
+        if actionlist[len(actionlist) - 1] == 4 and actionlist[len(actionlist) - 2] == 4:
+            rightcoll = True
     myc = depth
 
     if not len(ebene) > depth:
@@ -379,172 +384,153 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     #   Bei Jahreswechsel kann es zu Fehlern (zu kurzen Berechnungen) kommen..
     #   Auch so kann es sein, dass die ersten Berechnungen noch durchkommen, der Rest aber nicht mehr
 
-    current_time = str(datetime.utcnow())
-    mo = int(current_time[5:7])
-    t = int(current_time[8:10])
-    h = int(current_time[11:13])
-    m = int(current_time[14:16])
-    s = int(current_time[17:19])
-    ctime = (((mo * 30 + t) * 24 + h) * 60 + m) * 60 + s
+    # current_time = str(datetime.utcnow())
+    # mo = int(current_time[5:7])
+    # t = int(current_time[8:10])
+    # h = int(current_time[11:13])
+    # m = int(current_time[14:16])
+    # s = int(current_time[17:19])
+    # ctime = (((mo * 30 + t) * 24 + h) * 60 + m) * 60 + s
 
     # Wenn weniger als eine Sekunde bis zur Deadline verbleibt, bearbeite die Queue nicht weiter
-    if ctime + 1 > deadline:
+    if time.time() + 1 > deadline:
         notbremse = True
         return
-
-    # werden verwendet, um Ressourcen zu schonen, da nurnoch Kopf geprüft werden muss, wenn voriges geprüft wurde
-    clearsd = False
-    clearcn = False
 
     sprung = False
     if counter % 6 == 0:
         sprung = True
 
-    # check-slowdown
+    # check sd,cn,su
     newcoord = coord[:]
-    if speed > 1:
-        newy, newx = getnewpos(x, y, speed - 1, direction)
-        # Prüfe ob er das Spielfeld verlassen würde und ob am neuen Kopf eine Schlange ist
-        if height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
-            hit = False
-            if [newy, newx] in coord:
-                hit = True
+    if sprung:
+        newy, newx = getnewpos(x, y, 1, direction)
+        if height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0 and [newy, newx] not in coord:
             newcoord.append([newy, newx])
+            newy, newx = getnewpos(x, y, speed - 1, direction)
+            if speed > 1 and height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0 and [newy,
+                                                                                                      newx] not in coord:
+                newcoord0 = newcoord[:]
+                newcoord0.append([newy, newx])
+                actionlist0 = actionlist[:]
+                actionlist0.append(1)
+                ebene[depth][action] += wert
+                q.put((checkchoices, [newx, newy, direction, board, speed - 1, width, height, wert / 4,
+                                      depth + 1, counter + 1, deadline, action, newcoord0, actionlist0]))
+            newy, newx = getnewpos(x, y, speed, direction)
+            if height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0 and [newy, newx] not in coord:
+                newcoord1 = newcoord[:]
+                newcoord1.append([newy, newx])
+                actionlist1 = actionlist[:]
+                actionlist1.append(2)
+                ebene[depth][action] += wert
+                q.put((checkchoices, [newx, newy, direction, board, speed, width, height, wert / 4,
+                                      depth + 1, counter + 1, deadline, action, newcoord1, actionlist1]))
+            newy, newx = getnewpos(x, y, speed + 1, direction)
+            if speed < 10 and height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0 and [newy,
+                                                                                                       newx] not in coord:
+                newcoord2 = newcoord[:]
+                newcoord2.append([newy, newx])
+                actionlist2 = actionlist[:]
+                actionlist2.append(0)
+                ebene[depth][action] += wert
+                q.put((checkchoices, [newx, newy, direction, board, speed + 1, width, height, wert / 4,
+                                      depth + 1, counter + 1, deadline, action, newcoord2, actionlist2]))
+    else:
+        newy, newx = getnewpos(x, y, speed - 1, direction)
+        if speed == 1:  # Sonderfall abfangen, sonst prüft aktuellen Kopf
+            newy, newx = getnewpos(x, y, speed, direction)
+        if height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0 and [newy, newx] not in coord:
+            newcoord.append([newy, newx])
+            hit = False
             for i in range(1, speed - 1):
-                if hit:
-                    break
-                if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
-                    newyy, newxx = getnewpos(x, y, 1, direction)
-                    if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
-                        hit = True
-                        break
-                    newcoord.append([newyy, newxx])
-                    break
                 newyy, newxx = getnewpos(x, y, i, direction)
                 if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
                     hit = True
                     break
                 newcoord.append([newyy, newxx])
             if not hit:
-                clearsd = True
-                ebene[depth][action] += wert
-                q.put((checkchoices, [newx, newy, direction, board, speed - 1, width, height, wert / 2,
-                                      depth + 1, counter + 1, deadline, action, newcoord, actionlist]))
-
-    # check-nothing
-    newcoord = coord[:]
-    newy, newx = getnewpos(x, y, speed, direction)
-    if height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
-        hit = False
-        if [newy, newx] in coord:
-            hit = True
-        newcoord.append([newy, newx])
-        for i in range(1, speed):
-            if clearsd or hit:
-                break
-            if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
-                newyy, newxx = getnewpos(x, y, 1, direction)
-                if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
-                    hit = True
-                    break
-                newcoord.append([newyy, newxx])
-                break
-            newyy, newxx = getnewpos(x, y, i, direction)
-            if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
-                hit = True
-                break
-            newcoord.append([newyy, newxx])
-        if not hit:
-            clearcn = True
-            ebene[depth][action] += wert
-            q.put((checkchoices, [newx, newy, direction, board, speed, width, height, wert / 2,
-                                  depth + 1, counter + 1, deadline, action, newcoord, actionlist]))
-
-    # check-speedup
-    newcoord = coord[:]
-    newy, newx = getnewpos(x, y, speed + 1, direction)
-    if speed < 10 and height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
-        hit = False
-        if [newy, newx] in coord:
-            hit = True
-        newcoord.append([newy, newx])
-        for i in range(1, speed + 1):
-            if clearcn or hit:
-                break
-            if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
-                newyy, newxx = getnewpos(x, y, 1, direction)
-                if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
-                    hit = True
-                    break
-                newcoord.append([newyy, newxx])
-                break
-            newyy, newxx = getnewpos(x, y, i, direction)
-            if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
-                hit = True
-                break
-            newcoord.append([newyy, newxx])
-        if not hit:
-            ebene[depth][action] += wert
-            q.put((checkchoices, [newx, newy, direction, board, speed + 1, width, height, wert / 2,
-                                  depth + 1, counter + 1, deadline, action, newcoord, actionlist]))
+                if speed > 1:
+                    actionlist0 = actionlist[:]
+                    actionlist0.append(1)
+                    ebene[depth][action] += wert
+                    q.put((checkchoices, [newx, newy, direction, board, speed - 1, width, height, wert / 4,
+                                          depth + 1, counter + 1, deadline, action, newcoord, actionlist0]))
+                newy, newx = getnewpos(x, y, speed, direction)
+                if height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0 and [newy, newx] not in coord:
+                    newcoord1 = newcoord[:]
+                    newcoord1.append([newy, newx])
+                    actionlist1 = actionlist[:]
+                    actionlist1.append(2)
+                    ebene[depth][action] += wert
+                    q.put((checkchoices, [newx, newy, direction, board, speed, width, height, wert / 4,
+                                          depth + 1, counter + 1, deadline, action, newcoord1, actionlist1]))
+                    newy, newx = getnewpos(x, y, speed + 1, direction)
+                    if speed < 10 and height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0 and [newy,
+                                                                                                               newx] not in coord:
+                        newcoord2 = newcoord1[:]
+                        newcoord2.append([newy, newx])
+                        actionlist2 = actionlist[:]
+                        actionlist2.append(0)
+                        ebene[depth][action] += wert
+                        q.put((checkchoices, [newx, newy, direction, board, speed + 1, width, height, wert / 4,
+                                              depth + 1, counter + 1, deadline, action, newcoord2, actionlist2]))
 
     # check-left
-    newcoord = coord[:]
+    newcoord3 = coord[:]
     newdirection = getnewdirection(direction, "left")
     newy, newx = getnewpos(x, y, speed, newdirection)
-    if height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
+    if not leftcoll and height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0 and [newy,
+                                                                                                 newx] not in coord:
         hit = False
-        if [newy, newx] in coord:
-            hit = True
-        newcoord.append([newy, newx])
+        newcoord3.append([newy, newx])
         for i in range(1, speed):
-            if hit:
-                break
             if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
                 newyy, newxx = getnewpos(x, y, 1, newdirection)
                 if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
                     hit = True
                     break
-                newcoord.append([newyy, newxx])
+                newcoord3.append([newyy, newxx])
                 break
             newyy, newxx = getnewpos(x, y, i, newdirection)
             if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
                 hit = True
                 break
-            newcoord.append([newyy, newxx])
+            newcoord3.append([newyy, newxx])
         if not hit:
+            actionlist3 = actionlist[:]
+            actionlist3.append(3)
             ebene[depth][action] += wert
-            q.put((checkchoices, [newx, newy, newdirection, board, speed, width, height, wert / 2,
-                                  depth + 1, counter + 1, deadline, action, newcoord, actionlist]))
+            q.put((checkchoices, [newx, newy, newdirection, board, speed, width, height, wert / 4,
+                                  depth + 1, counter + 1, deadline, action, newcoord3, actionlist3]))
 
     # check-right
-    newcoord = coord[:]
+    newcoord4 = coord[:]
     newdirection = getnewdirection(direction, "right")
     newy, newx = getnewpos(x, y, speed, newdirection)
-    if height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
+    if not rightcoll and height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0 and [newy,
+                                                                                                  newx] not in coord:
         hit = False
-        if [newy, newx] in coord:
-            hit = True
-        newcoord.append([newy, newx])
+        newcoord4.append([newy, newx])
         for i in range(1, speed):
-            if hit:
-                break
             if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
                 newyy, newxx = getnewpos(x, y, 1, newdirection)
                 if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
                     hit = True
                     break
-                newcoord.append([newyy, newxx])
+                newcoord4.append([newyy, newxx])
                 break
             newyy, newxx = getnewpos(x, y, i, newdirection)
             if board[newyy][newxx] != 0 or [newyy, newxx] in coord:
                 hit = True
                 break
-            newcoord.append([newyy, newxx])
+            newcoord4.append([newyy, newxx])
         if not hit:
+            actionlist4 = actionlist[:]
+            actionlist4.append(4)
             ebene[depth][action] += wert
-            q.put((checkchoices, [newx, newy, newdirection, board, speed, width, height, wert / 2,
-                                  depth + 1, counter + 1, deadline, action, newcoord, actionlist]))
+            q.put((checkchoices, [newx, newy, newdirection, board, speed, width, height, wert / 4,
+                                  depth + 1, counter + 1, deadline, action, newcoord4, actionlist4]))
 
 
 async def play():
@@ -590,15 +576,8 @@ async def play():
             choices = [0, 0, 0, 0, 0]
             ebene = [[0, 0, 0, 0, 0]]
             q = Queue()
-            clearsd = False
-            clearcn = False
             notbremse = False
-            mo = int(state["deadline"][5:7])
-            t = int(state["deadline"][8:10])
-            h = int(state["deadline"][11:13])
-            m = int(state["deadline"][14:16])
-            s = int(state["deadline"][17:19])
-            deadline = (((mo * 30 + t) * 24 + h) * 60 + m) * 60 + s
+            deadline = dp.parse(state["deadline"]).timestamp()
             coord0 = []
             coord1 = []
             coord2 = []
@@ -614,92 +593,92 @@ async def play():
             # zu verhindern. Berücksichtigt nur Züge, bei denen der Gegner nicht außerhalb des Feldes landet
             board = gegnerboard(state, sprung)
 
-            # check-slowdown
-            if own_player["speed"] > 1:
+            # check sd,cn, su
+            # Vorgehen: Bei Sprung prüfe erst gemeinsamen Schwanz, dann jeweils Kopf
+            # Vorgehen: Bei nicht-Sprung prüfe sd komplett, dann Kopf cn, dann Kopf su
+            if sprung:
+                newy, newx = getnewpos(own_player["x"], own_player["y"], 1, own_player["direction"])
+                if state["height"] > newy >= 0 and state["width"] > newx >= 0 and board[newy][newx] == 0:
+                    coord0.append([newy, newx])
+                    coord1.append([newy, newx])
+                    coord2.append([newy, newx])
+                    newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"] - 1,
+                                           own_player["direction"])
+                    if own_player["speed"] > 1 and state["height"] > newy >= 0 and state["width"] > newx >= 0 and \
+                            board[newy][newx] == 0:
+                        coord0.append([newy, newx])
+                        ebene[depth][1] += wert
+                        q.put((checkchoices, [newx, newy, own_player["direction"], board,
+                                              own_player["speed"] - 1, state["width"],
+                                              state["height"], wert / 4, depth + 1, counter + 1, deadline, 1, coord0,
+                                              [1]]))
+                    newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"],
+                                           own_player["direction"])
+                    if state["height"] > newy >= 0 and state["width"] > newx >= 0 and board[newy][newx] == 0:
+                        coord1.append([newy, newx])
+                        ebene[depth][2] += wert
+                        q.put((checkchoices, [newx, newy, own_player["direction"], board,
+                                              own_player["speed"], state["width"], state["height"], wert / 4,
+                                              depth + 1, counter + 1, deadline, 2, coord1, [2]]))
+                    newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"] + 1,
+                                           own_player["direction"])
+                    if own_player["speed"] < 10 and state["height"] > newy >= 0 and state["width"] > newx >= 0 and \
+                            board[newy][newx] == 0:
+                        coord2.append([newy, newx])
+                        ebene[depth][0] += wert
+                        q.put((checkchoices, [newx, newy, own_player["direction"],
+                                              board, own_player["speed"] + 1, state["width"],
+                                              state["height"], wert / 4, depth + 1, counter + 1, deadline, 0, coord2,
+                                              [0]]))
+            else:
                 newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"] - 1,
                                        own_player["direction"])
+                if own_player["speed"] == 1:  # Sonderfall abfangen, sonst prüft aktuellen Kopf
+                    newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"],
+                                           own_player["direction"])
                 # Prüfe ob er das Spielfeld verlassen würde und ob Schlange an den neuen Stelle sind
                 if state["height"] > newy >= 0 and state["width"] > newx >= 0 and board[newy][newx] == 0:
                     hit = False
                     coord0.append([newy, newx])
+                    coord1.append([newy, newx])
+                    coord2.append([newy, newx])
                     for i in range(1, own_player["speed"] - 1):
-                        if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
-                            newyy, newxx = getnewpos(own_player["x"], own_player["y"], 1, own_player["direction"])
-                            if not board[newyy][newxx] == 0:
-                                hit = True
-                                break
-                            coord0.append([newyy, newxx])
-                            break
                         newyy, newxx = getnewpos(own_player["x"], own_player["y"], i, own_player["direction"])
                         if not board[newyy][newxx] == 0:
                             hit = True
                             break
                         coord0.append([newyy, newxx])
-                    if not hit:
-                        clearsd = True
-                        ebene[depth][1] += wert
-                        q.put((checkchoices, [newx, newy, own_player["direction"], board,
-                                              own_player["speed"] - 1, state["width"],
-                                              state["height"], wert / 2, depth + 1, counter + 1, deadline, 1, coord0,
-                                              []]))
-
-            # check-nothing
-            newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"], own_player["direction"])
-            # Prüfe ob er das Spielfeld verlassen würde, ob Schlange an den neuen Stelle sind
-            if state["height"] > newy >= 0 and state["width"] > newx >= 0 and board[newy][newx] == 0:
-                hit = False
-                coord1.append([newy, newx])
-                for i in range(1, own_player["speed"]):
-                    if clearsd:
-                        break
-                    if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
-                        newyy, newxx = getnewpos(own_player["x"], own_player["y"], 1, own_player["direction"])
-                        if not board[newyy][newxx] == 0:
-                            hit = True
-                            break
                         coord1.append([newyy, newxx])
-                        break
-                    newyy, newxx = getnewpos(own_player["x"], own_player["y"], i, own_player["direction"])
-                    if not board[newyy][newxx] == 0:
-                        hit = True
-                        break
-                    coord1.append([newyy, newxx])
-                if not hit:
-                    clearcn = True
-                    ebene[depth][2] += wert
-                    q.put((checkchoices, [newx, newy, own_player["direction"], board,
-                                          own_player["speed"], state["width"], state["height"], wert / 2,
-                                          depth + 1, counter + 1, deadline, 2, coord1, []]))
-
-            # check-speedup
-            if own_player["speed"] < 10:
-                newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"] + 1,
-                                       own_player["direction"])
-                # Prüfe ob er das Spielfeld verlassen würde, ob Schlange an den neuen Stelle sind
-                if state["height"] > newy >= 0 and state["width"] > newx >= 0 and board[newy][newx] == 0:
-                    hit = False
-                    coord2.append([newy, newx])
-                    for i in range(1, own_player["speed"] + 1):
-                        if clearcn:
-                            break
-                        if sprung:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
-                            newyy, newxx = getnewpos(own_player["x"], own_player["y"], 1, own_player["direction"])
-                            if not board[newyy][newxx] == 0:
-                                hit = True
-                                break
-                            coord2.append([newyy, newxx])
-                            break
-                        newyy, newxx = getnewpos(own_player["x"], own_player["y"], i, own_player["direction"])
-                        if not board[newyy][newxx] == 0:
-                            hit = True
-                            break
                         coord2.append([newyy, newxx])
                     if not hit:
-                        ebene[depth][0] += wert
-                        q.put((checkchoices, [newx, newy, own_player["direction"],
-                                              board, own_player["speed"] + 1, state["width"],
-                                              state["height"], wert / 2, depth + 1, counter + 1, deadline, 0, coord2,
-                                              []]))
+                        if own_player["speed"] > 1:
+                            ebene[depth][1] += wert
+                            q.put((checkchoices, [newx, newy, own_player["direction"], board,
+                                                  own_player["speed"] - 1, state["width"],
+                                                  state["height"], wert / 4, depth + 1, counter + 1, deadline, 1,
+                                                  coord0,
+                                                  [1]]))
+                        newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"],
+                                               own_player["direction"])
+                        if state["height"] > newy >= 0 and state["width"] > newx >= 0 and board[newy][newx] == 0:
+                            coord1.append([newy, newx])
+                            coord2.append([newy, newx])
+                            ebene[depth][2] += wert
+                            q.put((checkchoices, [newx, newy, own_player["direction"], board,
+                                                  own_player["speed"], state["width"], state["height"], wert / 4,
+                                                  depth + 1, counter + 1, deadline, 2, coord1, [2]]))
+                            newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"] + 1,
+                                                   own_player["direction"])
+                            if own_player["speed"] < 10 and state["height"] > newy >= 0 and state[
+                                "width"] > newx >= 0 and \
+                                    board[newy][newx] == 0:
+                                coord2.append([newy, newx])
+                                ebene[depth][0] += wert
+                                q.put((checkchoices, [newx, newy, own_player["direction"],
+                                                      board, own_player["speed"] + 1, state["width"],
+                                                      state["height"], wert / 4, depth + 1, counter + 1, deadline, 0,
+                                                      coord2,
+                                                      [0]]))
 
             # check-left
             newdirection = getnewdirection(own_player["direction"], "left")
@@ -725,7 +704,7 @@ async def play():
                     ebene[depth][3] += wert
                     q.put((checkchoices, [newx, newy, newdirection, board,
                                           own_player["speed"], state["width"], state["height"],
-                                          wert / 2, depth + 1, counter + 1, deadline, 3, coord3, []]))
+                                          wert / 4, depth + 1, counter + 1, deadline, 3, coord3, [3]]))
 
             # check-right
             newdirection = getnewdirection(own_player["direction"], "right")
@@ -751,7 +730,7 @@ async def play():
                     ebene[depth][4] += wert
                     q.put((checkchoices, [newx, newy, newdirection, board,
                                           own_player["speed"], state["width"], state["height"],
-                                          wert / 2, depth + 1, counter + 1, deadline, 4, coord4, []]))
+                                          wert / 4, depth + 1, counter + 1, deadline, 4, coord4, [4]]))
 
             # Bearbeite solange Objekte aus der Queue bis diese leer ist oder 1 Sekunde bis zur Deadline verbleibt
             while not q.empty() and not notbremse:
