@@ -197,14 +197,7 @@ def checkdistance(x, y, direction, board, speed, width, height, wert, depth, cou
     global notbremse
     global myc
 
-    myc = depth
 
-    #actionlist.append(newaction)
-
-    if not len(ebene) > depth:
-        ebene.append([0, 0, 0, 0, 0])
-
-    sprung = False
 
     # if distance > speed+1:
     # ebene += ..., etc
@@ -222,6 +215,14 @@ def checkdistance(x, y, direction, board, speed, width, height, wert, depth, cou
     # ist es in diesem Zug möglich
     if distance >= (speed + 1):
 
+        myc = depth
+
+        # actionlist.append(newaction)
+
+        if not len(ebene) > depth:
+            ebene.append([0, 0, 0, 0, 0])
+
+        sprung = False
         if counter % 6 == 0:
             sprung = True
 
