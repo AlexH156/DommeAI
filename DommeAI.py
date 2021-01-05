@@ -28,6 +28,9 @@ global notbremse
 global q
 global myc
 
+# global checkD
+# global checks
+
 
 def getnewdirection(direction, change):  # bestimme neue Richtung nach Wechsel
     if direction == change:
@@ -120,22 +123,25 @@ def distanz(state, direction):
     height = state["height"]
     own_player = state["players"][str(state["you"])]
     px = own_player["x"]
+    # print("x:", px, "width:", width)
     py = own_player["y"]
-    dis = -1
+    # print("y:", py, "height", height)
+    # print(board[py][px])
+    dis = 0
     if direction == "up":
-        while py >= 0 and board[py][px] == 0:
+        while py > 0 and board[py-1][px] == 0:
             py -= 1
             dis += 1
     elif direction == "down":
-        while py < height and board[py][px] == 0:
+        while py < height-1 and board[py+1][px] == 0:
             py += 1
             dis += 1
     elif direction == "right":
-        while px < width and board[py][px] == 0:
+        while px < width-1 and board[py][px+1] == 0:
             px += 1
             dis += 1
     else:
-        while px >= 0 and board[py][px] == 0:
+        while px > 0 and board[py][px-1] == 0:
             px -= 1
             dis += 1
     return dis
@@ -197,7 +203,8 @@ def checkdistance(x, y, direction, board, speed, width, height, wert, depth, cou
     global notbremse
     global myc
 
-
+    # global checkD
+    # checkD += 1
 
     # if distance > speed+1:
     # ebene += ..., etc
@@ -554,6 +561,13 @@ async def play():
     global q
     global myc
     global notbremse
+
+    # global checkD
+    # global checks
+    #
+    # checks = 0
+    # checkD = 0
+
     filename = 'apikey.txt'
     url = "wss://msoll.de/spe_ed"
     key = open(filename, "r").read().strip()
@@ -604,6 +618,10 @@ async def play():
             vorne = distanz(state, own_player["direction"])
             links = distanz(state, getnewdirection(own_player["direction"], "left"))
             rechts = distanz(state, getnewdirection(own_player["direction"], "right"))
+
+            # print("distanz nach vorne:", vorne)
+            # print("rechts:", rechts)
+            # print("links:", links)
 
             # Erstelle ein Board mit allen möglichen Zügen der aktiven Gegner, um Überschneidungen im nächsten Schritt
             # zu verhindern. Berücksichtigt alle Züge, bei denen der Gegner nicht außerhalb des Feldes landet
@@ -754,6 +772,7 @@ async def play():
 
             # Bearbeite solange Objekte aus der Queue bis diese leer ist oder 1 Sekunde bis zur Deadline verbleibt
             while not q.empty() and not notbremse:
+                # checks += 1
                 f, args = q.get()
                 f(*args)
 
@@ -785,6 +804,11 @@ async def play():
                 action = random.choice(randy)
             print("Endzeit: " + str(datetime.utcnow()))
             print(">", action)
+
+            # print("\n", checks, "davon checkD:", checkD)
+            # checks = 0
+            # checkD = 0
+
             action_json = json.dumps({"action": action})
             if show:  # GUI, falls show == True
                 anzeige(state, counter, action, choices, myc - 1)
