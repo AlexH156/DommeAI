@@ -311,6 +311,8 @@ def checkdistance(x, y, direction, board, speed, width, height, wert, depth, cou
                     # speed_down
                     ebene[depth][action] += wert
                     newy, newx = getnewpos(x, y, speed - 1, direction)
+                    if speed > 2:
+                        newcoord.append([newy,newx]) # TODO erledigt
                     q.put((checkdistance, [newx, newy, direction, board, speed - 1, width, height, wert / 2,
                                            depth + 1, counter + 1, deadline, action, newcoord,
                                            distance - (speed - 1), 0, checkCounter]))
@@ -342,7 +344,8 @@ def checkdistance(x, y, direction, board, speed, width, height, wert, depth, cou
                 # speed_down in queue
                 if speed > 1:
                     newcoord0 = newcoord[:]
-                    newcoord0.append([newy, newx])
+                    if speed > 2: # TODO erledigt
+                        newcoord0.append([newy, newx])
                     ebene[depth][action] += wert
                     q.put((checkchoices, [newx, newy, direction, board, speed - 1, width, height, wert / 2,
                                           depth + 1, counter + 1, deadline, action, newcoord0, 0, checkCounter]))
@@ -370,6 +373,8 @@ def checkdistance(x, y, direction, board, speed, width, height, wert, depth, cou
                     # speed_down
                     ebene[depth][action] += wert
                     newy, newx = getnewpos(x, y, speed - 1, direction)
+                    if speed > 2:
+                        newcoord.append([newy,newx]) # TODO erledigt
                     q.put((checkchoices, [newx, newy, direction, board, speed - 1, width, height, wert / 2,
                                           depth + 1, counter + 1, deadline, action, newcoord, 0, checkCounter]))
                 # change_nothing
