@@ -66,35 +66,44 @@ def checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, 
                      collCounter, checkCounter, change):
     direction = getnewdirection(direction, change)
     isJump = counter % 6 == 0
+    isCCLR = checkCounter < 2   # True, wenn Koord nicht geprüft werden müssen
     newcoord = coord[:]
     newheadY, newheadX = getnewpos(x, y, speed, direction)
     if (change == "left" and collCounter != -2 or change == "right" and collCounter != 2) and height > newheadY >= 0 \
-            and width > newheadX >= 0 and board[newheadY][newheadX] == 0 and [newheadY, newheadX] not in coord:
+            and width > newheadX >= 0 and board[newheadY][newheadX] == 0 and (isCCLR or [newheadY, newheadX] not in coord):
         isHit = False
         newcoord.append([newheadY, newheadX])
         for i in range(1, speed):
             if isJump:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
                 newbodyY, newbodyX = getnewpos(x, y, 1, direction)
-                if board[newbodyY][newbodyX] != 0 or [newbodyY, newbodyX] in coord:
+                if board[newbodyY][newbodyX] != 0 or (not isCCLR and [newbodyY, newbodyX] in coord):
                     isHit = True
                     break
                 newcoord.append([newbodyY, newbodyX])
                 break
             newbodyY, newbodyX = getnewpos(x, y, i, direction)
-            if board[newbodyY][newbodyX] != 0 or [newbodyY, newbodyX] in coord:
+            if board[newbodyY][newbodyX] != 0 or (not isCCLR and [newbodyY, newbodyX] in coord):
                 isHit = True
                 break
             newcoord.append([newbodyY, newbodyX])
         if not isHit:
             ebene[depth][action] += wert
             if change == "left":
+                if collCounter > 0:
+                    checkCounter -= 1
+                else:
+                    checkCounter += 1
                 q.put((checkchoices, [newheadX, newheadY, direction, board, speed, width, height, wert / 2,
                                       depth + 1, counter + 1, deadline, action, newcoord, min(collCounter - 1, - 1),
-                                      checkCounter - 1]))
+                                      checkCounter]))
             else:
+                if collCounter < 0:
+                    checkCounter -= 1
+                else:
+                    checkCounter += 1
                 q.put((checkchoices, [newheadX, newheadY, direction, board, speed, width, height, wert / 2,
                                       depth + 1, counter + 1, deadline, action, newcoord, max(collCounter + 1, 1),
-                                      checkCounter + 1]))
+                                      checkCounter]))
 
 
 # Diese Methode trägt alle legalen Züge der Gegner ein, um Überschneidungen zu vermeiden.
@@ -425,9 +434,7 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     global notbremse
     global myc
 
-    isCCStraight = False  # (3 > checkCounter > -3)  # True, wenn Koordinaten nicht geprüft werden müssen
-    isCCRight = False  # checkCounter < 2    # True, wenn Koordinaten nicht geprüft werden müssen
-    isCCLeft = False  # checkCounter > -2    # True, wenn Koordinaten nicht geprüft werden müssen
+    isCCStraight = checkCounter < 3 # True, wenn Koordinaten nicht geprüft werden müssen
 
     if not len(ebene) > depth:
         ebene.append([0, 0, 0, 0, 0])
