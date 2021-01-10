@@ -20,7 +20,7 @@ import websockets
 # TODO Wenn alle choices 0 dann nochmal prüfen und nicht zufall (bei len(randy) > 1)
 # TODO In CheckChoices die Prüfungen zusammen fassen (Optik)
 # TODO sd,cn,su vll schöner umschreiben
-# TODO Collcounter prüfen, weil bei Tests andere Ergebnisse rauskommen
+# TODO Checkcounter prüfen
 
 global ebene
 global notbremse
