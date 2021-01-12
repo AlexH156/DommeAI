@@ -1,7 +1,9 @@
+import calendar
 from datetime import datetime, date
 import time
 import json
-from copy import deepcopy
+from copy import deepcopy, copy
+from enum import Enum
 from queue import Queue
 from threading import Thread
 from collections import deque
@@ -9,6 +11,7 @@ import matplotlib.pylab as plt
 # from matplotlib import pyplot
 from matplotlib import pyplot, use, colors
 from scipy import sparse
+import dateutil.parser as dp
 
 global q
 global ebene
@@ -43,6 +46,41 @@ def getnewpos(x, y, s, dir):  # bestimme neue Position
         return [y, x - s]
     elif dir == "right":
         return [y, x + s]
+
+
+class Direction(Enum):
+    Up = 0
+    Down = 1
+    Left = 2
+    Right = 3
+
+
+def checkLeft(x,y,direction, board, speed, width, height, wert, depth, counter, deadline, action,coord, collCounter, checkCounter):
+    isJump = False
+    newcoord3 = coord[:]
+    newdirection = getnewdirection(direction, "left")
+    newy, newx = getnewpos(x, y, speed, newdirection)
+    if height > newy >= 0 and width > newx >= 0 and board[newy][newx] == 0:
+        hit = False
+        newcoord3.append([newy, newx])
+        for i in range(1, speed):
+            if isJump:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
+                newyy, newxx = getnewpos(x, y, 1, newdirection)
+                if board[newyy][newxx] != 0:
+                    hit = True
+                    break
+                newcoord3.append([newyy, newxx])
+                break
+            newyy, newxx = getnewpos(x, y, i, newdirection)
+            if board[newyy][newxx] != 0:
+                hit = True
+                break
+            newcoord3.append([newyy, newxx])
+        if not hit:
+            ebene[depth][action] += wert
+            q.put((checkchoices, [newx, newy, newdirection, board, speed, width, height, wert / 2,
+                                  depth + 1, counter + 1, deadline, action, newcoord3, min(collCounter - 1, - 1),
+                                  checkCounter - 1]))
 
 def checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action):
 
@@ -421,4 +459,95 @@ def main():
     #     pyplot.yticks([])
     #     pyplot.xlabel(you + "\n" + str(choices) + "\n" + "nächster Zug: " + str(action))
     #     pyplot.show(block=False)
+    x=30
+    y=34
+    counter = 6
+    an = time.time()
+    board = state["cells"]
+    actionlist = [0,4,2,4,1,1,0,2,3,4,1,3]
+    coord = [[34,15],[12,55],[14,58],[1,1],[12,58],[13,37],[4,20],[10,10],[18,21],[88,88],[153,12],[158,4],[24,41],[11,42],[24,42],[11,7],[34,15],[12,55],[14,54],[1,1],[12,58],[13,37],[4,20],[34,15],[12,55],[14,58],[1,1],[12,58],[13,37],[4,20],[10,10],[18,21],[88,88],[153,12],[158,4],[24,41],[11,42],[24,42],[11,7],[34,15],[12,55],[14,54],[1,1],[12,58],[13,37],[4,20]]
+    isCC = True
+    direction = own_player["direction"]
+    width = state["width"]
+    height = state["height"]
+    speed = own_player["speed"]
+    isJump = False
+    wert = 0.5
+    depth = 1
+    deadline = 4
+    action = 3
+    collCounter = 0
+    checkCounter = 0
+    global ebene
+    ebene = [[0,0,0,0,0],[0,0,0,0,0]]
+    global q
+    q = Queue()
+    change = "left"
+
+    test = [[12,54],[13,54],[14,14]]        #,[15,54],[16,54],[17,54]
+    for i in range(1,100000000):
+        if change == "left":
+            x = 3
+
+    print(4.050813913345337-4.323548078536987)
+    # 0.3964817523956299
+    # print(state["cells"])
+    # print(neu)
+    # 100k kopien: deepcopy116 sek, map und row 1.1 sek,
+    # print(sum)
+    # print(sum[5])
+    coord = [[1,2],[3,4],[5,6]]
+    newcoord = coord[:]
+    newcoord.append([13,37])
+    test = newcoord
+    newcoord = coord[:]
+    print(time.time() - an)
+    # gesamt = 0
+    # anzahl = 0
+    # list = []
+    # listende = []
+    # for i in range(0,5):
+    #     for ii in range(0, 5):
+    #         for iii in range(0, 5):
+    #             for iv in range(0, 5):
+    #                 for v in range(0, 5):
+    #                     for vi in range(0, 5):
+    #                         for vii in range(0, 5):
+    #                             for viii in range(0, 5):
+    #                                 for ix in range(0, 5):
+    #                                     for x in range(0, 5):
+    #                                         gesamt += 1
+    #                                         test = [i,ii,iii,iv,v,vi,vii,viii,ix,x]
+    #                                         if test.count(4) > 1:
+    #                                             list.append(test)
+    # for i in range(0,len(list)):
+    #     if list[i][list[i].index(4)+1] == 4:
+    #         listende.append(list[i])
+    # # print(list[0][list.index(4)])
+    # print(listende)
+    # # print(anzahl)
+    # print(len(listende)/gesamt)
+    # print(anzahl/gesamt)
+    # deadline = str(datetime.utcnow())
+    # print(deadline)
+    # deadline = "2021-01-04T12:04:23Z"
+    # #print(current_time)
+    # ja = int(deadline[0:4])-2021
+    # mo = int(deadline[5:7])
+    # t = int(deadline[8:10])
+    # h = int(deadline[11:13])
+    # m = int(deadline[14:16])
+    # s = int(deadline[17:19])
+    # ctime = (((((ja*12)+mo-1) * 30 + t-1) * 24 + h) * 60 + m) * 60 + s
+    # print(state["deadline"])
+    #
+    # jahre = 1609459200
+    # print(jahre+ctime)
+    #
+    # t = '2021-01-04T12:04:23Z'
+    # parsed_t = dp.parse(t).timestamp()
+    # print(parsed_t)
+
+
 main()
+

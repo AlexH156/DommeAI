@@ -470,8 +470,6 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     global notbremse
     global myc
 
-    isCCStraight = checkCounter < 3 # True, wenn Koordinaten nicht geprüft werden müssen
-
     if not len(ebene) > depth:
         ebene.append([0, 0, 0, 0, 0])
         myc = depth
@@ -560,13 +558,13 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                     q.put((checkchoices, [newheadX, newheadY, direction, board, speed + 1, width, height, wert / 2,
                                           depth + 1, counter + 1, deadline, action, newcoord2, 0, 0, checkCounter, sackG]))
 
-        # check-left
-        checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord,
-                         collCounter, checkCounter, "left", 0, sackG)
+    # check-left
+    checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord,
+                     collCounter, checkCounter, "left", 0, sackG)
 
-        # check-right
-        checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord,
-                         collCounter, checkCounter, "right", 0, sackG)
+    # check-right
+    checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord,
+                     collCounter, checkCounter, "right", 0, sackG)
 
 
 async def play():
