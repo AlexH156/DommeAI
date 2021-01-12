@@ -355,7 +355,7 @@ def checkdistance(x, y, direction, board, speed, width, height, wert, depth, cou
 
     # wenn in der Distanz nicht möglich -> CC um mögliche Sprünge / left / right zu checken
     else:
-        checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord,
+        checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord, 0
                      collCounter, checkCounter)
 
 
