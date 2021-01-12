@@ -63,26 +63,25 @@ def getnewpos(x, y, speed, direction):
 
 
 def checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord,
-                     collCounter, checkCounter, change):
+                     collCounter, checkCounter, change, distance):
     direction = getnewdirection(direction, change)
     isJump = counter % 6 == 0
-    isCCLR = checkCounter < 2   # True, wenn Koord nicht geprüft werden müssen
     newcoord = coord[:]
     newheadY, newheadX = getnewpos(x, y, speed, direction)
     if (change == "left" and collCounter != -2 or change == "right" and collCounter != 2) and height > newheadY >= 0 \
-            and width > newheadX >= 0 and board[newheadY][newheadX] == 0 and (isCCLR or [newheadY, newheadX] not in coord):
+            and width > newheadX >= 0 and board[newheadY][newheadX] == 0 and [newheadY, newheadX] not in coord:
         isHit = False
         newcoord.append([newheadY, newheadX])
         for i in range(1, speed):
             if isJump:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
                 newbodyY, newbodyX = getnewpos(x, y, 1, direction)
-                if board[newbodyY][newbodyX] != 0 or (not isCCLR and [newbodyY, newbodyX] in coord):
+                if board[newbodyY][newbodyX] != 0 or [newbodyY, newbodyX] in coord:
                     isHit = True
                     break
                 newcoord.append([newbodyY, newbodyX])
                 break
             newbodyY, newbodyX = getnewpos(x, y, i, direction)
-            if board[newbodyY][newbodyX] != 0 or (not isCCLR and [newbodyY, newbodyX] in coord):
+            if board[newbodyY][newbodyX] != 0 or [newbodyY, newbodyX] in coord:
                 isHit = True
                 break
             newcoord.append([newbodyY, newbodyX])
@@ -93,17 +92,20 @@ def checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, 
                     checkCounter -= 1
                 else:
                     checkCounter += 1
-                q.put((checkchoices, [newheadX, newheadY, direction, board, speed, width, height, wert / 2,
-                                      depth + 1, counter + 1, deadline, action, newcoord, min(collCounter - 1, - 1),
-                                      checkCounter]))
+                collCounter = min(collCounter - 1, - 1)
             else:
                 if collCounter < 0:
                     checkCounter -= 1
                 else:
                     checkCounter += 1
-                q.put((checkchoices, [newheadX, newheadY, direction, board, speed, width, height, wert / 2,
-                                      depth + 1, counter + 1, deadline, action, newcoord, max(collCounter + 1, 1),
-                                      checkCounter]))
+                collCounter = max(collCounter + 1, 1)
+            if distance > speed:
+                q.put((checkdistance, [newheadX, newheadY, direction, board, speed, width, height, wert / 2, depth + 1,
+                                       counter + 1, deadline, action, newcoord, distance - speed, collCounter,
+                                       checkCounter]))
+            else:
+                q.put((checkchoices, [newheadX, newheadY, direction, board, speed, width, height, wert / 2, depth + 1,
+                                      counter + 1, deadline, action, newcoord, 0, collCounter, checkCounter]))
 
 
 # Diese Methode trägt alle legalen Züge der Gegner ein, um Überschneidungen zu vermeiden.
@@ -248,7 +250,7 @@ def checkdistance(x, y, direction, board, speed, width, height, wert, depth, cou
     global myc
 
     global checkD
-    checkD += 1
+    checkD += 1 # Debugging
 
     # if distance > speed+1:
     # ebene += ..., etc
@@ -265,161 +267,99 @@ def checkdistance(x, y, direction, board, speed, width, height, wert, depth, cou
 
     # ist es in diesem Zug möglich
     if distance >= (speed + 1):
-
-        myc = depth
-
-        # actionlist.append(newaction)
+        if distance == (speed + 1):
+            checkWhat = checkchoices
+        else:
+            checkWhat = checkdistance
 
         if not len(ebene) > depth:
             ebene.append([0, 0, 0, 0, 0])
+            myc = depth
 
         isJump = counter % 6 == 0
 
         newcoord = coord[:]
 
         # ist es evtl im nächsten Schritt möglich? -> CD
-        if distance > (speed + 1):
-            if isJump:
-                newy, newx = getnewpos(x, y, 1, direction)
-                newcoord.append([newy, newx])
+        if isJump:
+            newy, newx = getnewpos(x, y, 1, direction)
+            newcoord.append([newy, newx])
 
-                # speed_down in queue
-                if speed > 1:
-                    newy, newx = getnewpos(x, y, speed - 1, direction)
-                    newcoord0 = newcoord[:]
-                    if speed > 2:
-                        newcoord0.append([newy, newx])
-                    ebene[depth][action] += wert
-                    q.put((checkdistance, [newx, newy, direction, board, speed - 1, width, height, wert / 2,
-                                           depth + 1, counter + 1, deadline, action, newcoord0,
-                                           distance - (speed - 1), 0, checkCounter]))
-
-                # change_nothing
-                newy, newx = getnewpos(x, y, speed, direction)
-                newcoord1 = newcoord[:]
-                newcoord1.append([newy, newx])
+            # speed_down in queue
+            if speed > 1:
+                newy, newx = getnewpos(x, y, speed - 1, direction)
+                newcoord0 = newcoord[:]
+                if speed > 2:
+                    newcoord0.append([newy, newx])
                 ebene[depth][action] += wert
-                q.put((checkdistance, [newx, newy, direction, board, speed, width, height, wert / 2,
-                                       depth + 1, counter + 1, deadline, action, newcoord1, distance - speed, 0,
-                                       checkCounter]))
-                # speed_up
-                if speed < 10:
-                    newy, newx = getnewpos(x, y, speed + 1, direction)
-                    newcoord2 = newcoord[:]
-                    newcoord2.append([newy, newx])
-                    ebene[depth][action] += wert
-                    q.put((checkdistance, [newx, newy, direction, board, speed + 1, width, height, wert / 2,
-                                           depth + 1, counter + 1, deadline, action, newcoord2,
-                                           distance - (speed + 1), 0, checkCounter]))
-            else:
-                if speed > 1:
-                    for i in range(1, speed - 1):
-                        newyy, newxx = getnewpos(x, y, i, direction)
-                        newcoord.append([newyy, newxx])
-                    # speed_down
-                    ebene[depth][action] += wert
-                    newy, newx = getnewpos(x, y, speed - 1, direction)
-                    if speed > 2:
-                        newcoord.append([newy,newx])
-                    q.put((checkdistance, [newx, newy, direction, board, speed - 1, width, height, wert / 2,
-                                           depth + 1, counter + 1, deadline, action, newcoord,
-                                           distance - (speed - 1), 0, checkCounter]))
-                # change_nothing
-                newy, newx = getnewpos(x, y, speed, direction)
-                newcoord1 = newcoord[:]
-                newcoord1.append([newy, newx])
+                q.put((checkWhat, [newx, newy, direction, board, speed - 1, width, height, wert / 2,
+                                       depth + 1, counter + 1, deadline, action, newcoord0,
+                                       distance - (speed - 1), 0, checkCounter]))
+
+            # change_nothing
+            newy, newx = getnewpos(x, y, speed, direction)
+            newcoord1 = newcoord[:]
+            newcoord1.append([newy, newx])
+            ebene[depth][action] += wert
+            q.put((checkWhat, [newx, newy, direction, board, speed, width, height, wert / 2,
+                                   depth + 1, counter + 1, deadline, action, newcoord1, distance - speed, 0,
+                                   checkCounter]))
+            # speed_up
+            if speed < 10:
+                newy, newx = getnewpos(x, y, speed + 1, direction)
+                newcoord2 = newcoord[:]
+                newcoord2.append([newy, newx])
                 ebene[depth][action] += wert
-                q.put((checkdistance, [newx, newy, direction, board, speed, width, height, wert / 2,
-                                       depth + 1, counter + 1, deadline, action, newcoord1, distance - speed, 0,
-                                       checkCounter]))
+                q.put((checkWhat, [newx, newy, direction, board, speed + 1, width, height, wert / 2,
+                                       depth + 1, counter + 1, deadline, action, newcoord2,
+                                       distance - (speed + 1), 0, checkCounter]))
+        else:
+            if speed > 1:
+                for i in range(1, speed - 1):
+                    newyy, newxx = getnewpos(x, y, i, direction)
+                    newcoord.append([newyy, newxx])
+                # speed_down
+                ebene[depth][action] += wert
+                newy, newx = getnewpos(x, y, speed - 1, direction)
+                if speed > 2:
+                    newcoord.append([newy, newx])
+                q.put((checkWhat, [newx, newy, direction, board, speed - 1, width, height, wert / 2,
+                                       depth + 1, counter + 1, deadline, action, newcoord,
+                                       distance - (speed - 1), 0, checkCounter]))
+            # change_nothing
+            newy, newx = getnewpos(x, y, speed, direction)
+            newcoord1 = newcoord[:]
+            newcoord1.append([newy, newx])
+            ebene[depth][action] += wert
+            q.put((checkWhat, [newx, newy, direction, board, speed, width, height, wert / 2,
+                                   depth + 1, counter + 1, deadline, action, newcoord1, distance - speed, 0,
+                                   checkCounter]))
 
-                # speed_up
-                if speed < 10:
-                    newy, newx = getnewpos(x, y, speed + 1, direction)
-                    newcoord2 = newcoord1[:]
-                    newcoord2.append([newy, newx])
-                    ebene[depth][action] += wert
-                    q.put((checkdistance, [newx, newy, direction, board, speed + 1, width, height, wert / 2,
-                                           depth + 1, counter + 1, deadline, action, newcoord2,
-                                           distance - (speed + 1), 0, checkCounter]))
-
-        # nur in diesem schritt möglich -> CC
-        # else:
-        #     if isJump:
-        #         newy, newx = getnewpos(x, y, 1, direction)
-        #         newcoord.append([newy, newx])
-        #
-        #         # speed_down in queue
-        #         if speed > 1:
-        #             newcoord0 = newcoord[:]
-        #             if speed > 2:
-        #                 newcoord0.append([newy, newx])
-        #             ebene[depth][action] += wert
-        #             q.put((checkchoices, [newx, newy, direction, board, speed - 1, width, height, wert / 2,
-        #                                   depth + 1, counter + 1, deadline, action, newcoord0, 0, checkCounter]))
-        #
-        #         # change_nothing
-        #         newy, newx = getnewpos(x, y, speed, direction)
-        #         newcoord1 = newcoord[:]
-        #         newcoord1.append([newy, newx])
-        #         ebene[depth][action] += wert
-        #         q.put((checkchoices, [newx, newy, direction, board, speed, width, height, wert / 2,
-        #                               depth + 1, counter + 1, deadline, action, newcoord1, 0, checkCounter]))
-        #         # speed_up
-        #         if speed < 10:
-        #             newy, newx = getnewpos(x, y, speed + 1, direction)
-        #             newcoord2 = newcoord[:]
-        #             newcoord2.append([newy, newx])
-        #             ebene[depth][action] += wert
-        #             q.put((checkchoices, [newx, newy, direction, board, speed + 1, width, height, wert / 2,
-        #                                   depth + 1, counter + 1, deadline, action, newcoord2, 0, checkCounter]))
-        #     else:
-        #         if speed > 1:
-        #             for i in range(1, speed - 1):
-        #                 newyy, newxx = getnewpos(x, y, i, direction)
-        #                 newcoord.append([newyy, newxx])
-        #             # speed_down
-        #             ebene[depth][action] += wert
-        #             newy, newx = getnewpos(x, y, speed - 1, direction)
-        #             if speed > 2:
-        #                 newcoord.append([newy,newx])
-        #             q.put((checkchoices, [newx, newy, direction, board, speed - 1, width, height, wert / 2,
-        #                                   depth + 1, counter + 1, deadline, action, newcoord, 0, checkCounter]))
-        #         # change_nothing
-        #         newy, newx = getnewpos(x, y, speed, direction)
-        #         newcoord1 = newcoord[:]
-        #         newcoord1.append([newy, newx])
-        #         ebene[depth][action] += wert
-        #         q.put((checkchoices, [newx, newy, direction, board, speed, width, height, wert / 2,
-        #                               depth + 1, counter + 1, deadline, action, newcoord1, 0, checkCounter]))
-        #
-        #         # speed_up
-        #         if speed < 10:
-        #             newy, newx = getnewpos(x, y, speed + 1, direction)
-        #             newcoord2 = newcoord1[:]
-        #             newcoord2.append([newy, newx])
-        #             ebene[depth][action] += wert
-        #             q.put((checkchoices, [newx, newy, direction, board, speed + 1, width, height, wert / 2,
-        #                                   depth + 1, counter + 1, deadline, action, newcoord2, 0, checkCounter]))
-
-        # checkleft, checkright von cc
+            # speed_up
+            if speed < 10:
+                newy, newx = getnewpos(x, y, speed + 1, direction)
+                newcoord2 = newcoord1[:]
+                newcoord2.append([newy, newx])
+                ebene[depth][action] += wert
+                q.put((checkWhat, [newx, newy, direction, board, speed + 1, width, height, wert / 2,
+                                       depth + 1, counter + 1, deadline, action, newcoord2,
+                                       distance - (speed + 1), 0, checkCounter]))
 
         # check-left
         checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action,
-                         coord,
-                         collCounter, checkCounter, "left")
+                         coord, collCounter, checkCounter, "left", 0)
 
         # check-right
         checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action,
-                         coord,
-                         collCounter, checkCounter, "right")
-    # wenn in der Distanz nicht möglich -> CC um mögloiche Sprünge / left / right zu checken
+                         coord, collCounter, checkCounter, "right", 0)
+
+    # wenn in der Distanz nicht möglich -> CC um mögliche Sprünge / left / right zu checken
     else:
         checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord,
                      collCounter, checkCounter)
 
 
-def checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord,
+def checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord,distance,
                  collCounter, checkCounter):
     # collCounter: +1 wenn rechts, -1 wenn links, =0 wenn vorne
     # collCounter == 2: checkright muss nicht geprüft werden
@@ -434,8 +374,6 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
     global notbremse
     global myc
 
-    isCCStraight = checkCounter < 3 # True, wenn Koordinaten nicht geprüft werden müssen
-
     if not len(ebene) > depth:
         ebene.append([0, 0, 0, 0, 0])
         myc = depth
@@ -445,6 +383,7 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
         notbremse = True
         return
 
+    isCCStraight = checkCounter < 3  # True, wenn Koordinaten nicht geprüft werden müssen
     isJump = counter % 6 == 0
 
     # check sd,cn,su
@@ -463,7 +402,7 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                     newcoord0.append([newheadY, newheadX])
                 ebene[depth][action] += wert
                 q.put((checkchoices, [newheadX, newheadY, direction, board, speed - 1, width, height, wert / 2,
-                                      depth + 1, counter + 1, deadline, action, newcoord0, 0, checkCounter]))
+                                      depth + 1, counter + 1, deadline, action, newcoord0, 0, 0, checkCounter]))
             newheadY, newheadX = getnewpos(x, y, speed, direction)
             if height > newheadY >= 0 and width > newheadX >= 0 and board[newheadY][newheadX] == 0 and (
                     isCCStraight or [newheadY, newheadX] not in coord):
@@ -472,7 +411,7 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                     newcoord1.append([newheadY, newheadX])
                 ebene[depth][action] += wert
                 q.put((checkchoices, [newheadX, newheadY, direction, board, speed, width, height, wert / 2,
-                                      depth + 1, counter + 1, deadline, action, newcoord1, 0, checkCounter]))
+                                      depth + 1, counter + 1, deadline, action, newcoord1, 0, 0, checkCounter]))
             newheadY, newheadX = getnewpos(x, y, speed + 1, direction)
             if speed < 10 and height > newheadY >= 0 and width > newheadX >= 0 and board[newheadY][newheadX] == 0 and (
                     isCCStraight or [newheadY,
@@ -481,7 +420,7 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                 newcoord2.append([newheadY, newheadX])
                 ebene[depth][action] += wert
                 q.put((checkchoices, [newheadX, newheadY, direction, board, speed + 1, width, height, wert / 2,
-                                      depth + 1, counter + 1, deadline, action, newcoord2, 0, checkCounter]))
+                                      depth + 1, counter + 1, deadline, action, newcoord2, 0, 0, checkCounter]))
     else:
         newcoord0 = coord[:]
         hit = False
@@ -499,7 +438,7 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                 if not hit:
                     ebene[depth][action] += wert
                     q.put((checkchoices, [newheadX, newheadY, direction, board, speed - 1, width, height, wert / 2,
-                                          depth + 1, counter + 1, deadline, action, newcoord0, 0, checkCounter]))
+                                          depth + 1, counter + 1, deadline, action, newcoord0, 0, 0, checkCounter]))
             else:
                 hit = True
         if not hit:
@@ -510,7 +449,7 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                 newcoord1.append([newheadY, newheadX])
                 ebene[depth][action] += wert
                 q.put((checkchoices, [newheadX, newheadY, direction, board, speed, width, height, wert / 2,
-                                      depth + 1, counter + 1, deadline, action, newcoord1, 0, checkCounter]))
+                                      depth + 1, counter + 1, deadline, action, newcoord1, 0, 0, checkCounter]))
                 newheadY, newheadX = getnewpos(x, y, speed + 1, direction)
                 if speed < 10 and height > newheadY >= 0 and width > newheadX >= 0 and board[newheadY][
                     newheadX] == 0 and (
@@ -520,15 +459,15 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                     newcoord2.append([newheadY, newheadX])
                     ebene[depth][action] += wert
                     q.put((checkchoices, [newheadX, newheadY, direction, board, speed + 1, width, height, wert / 2,
-                                          depth + 1, counter + 1, deadline, action, newcoord2, 0, checkCounter]))
+                                          depth + 1, counter + 1, deadline, action, newcoord2, 0, 0, checkCounter]))
 
         # check-left
         checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord,
-                         collCounter, checkCounter, "left")
+                         collCounter, checkCounter, "left", 0)
 
         # check-right
         checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord,
-                         collCounter, checkCounter, "right")
+                         collCounter, checkCounter, "right", 0)
 
 
 async def play():
@@ -580,8 +519,6 @@ async def play():
             coord0 = []
             coord1 = []
             coord2 = []
-            coord3 = []
-            coord4 = []
             checks = 0  # Debugging
             checkD = 0  # Debugging
 
@@ -621,7 +558,7 @@ async def play():
                     newy, newx = getnewpos(own_player["x"], own_player["y"], own_player["speed"],
                                            own_player["direction"])
                     if state["height"] > newy >= 0 and state["width"] > newx >= 0 and board[newy][newx] == 0:
-                        if own_player["speed"]:
+                        if own_player["speed"] > 1:
                             coord1.append([newy, newx])
                         ebene[depth][2] += wert
                         q.put((checkdistance, [newx, newy, own_player["direction"], board,
@@ -689,58 +626,14 @@ async def play():
                                                    coord2, vorne - (own_player["speed"] + 1), 0, 0]))
 
             # check-left
-            newdirection = getnewdirection(own_player["direction"], "left")
-            newheadY, newheadX = getnewpos(own_player["x"], own_player["y"], own_player["speed"], newdirection)
-            # Prüfe ob er das Spielfeld verlassen würde, ob Schlange an den neuen Stelle sind
-            if state["height"] > newheadY >= 0 and state["width"] > newheadX >= 0 and board[newheadY][newheadX] == 0:
-                isHit = False
-                coord3.append([newheadY, newheadX])
-                for i in range(1, own_player["speed"]):
-                    if isJump:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
-                        newbodyY, newbodyX = getnewpos(own_player["x"], own_player["y"], 1, newdirection)
-                        if not board[newbodyY][newbodyX] == 0:
-                            isHit = True
-                            break
-                        coord3.append([newbodyY, newbodyX])
-                        break
-                    newbodyY, newbodyX = getnewpos(own_player["x"], own_player["y"], i, newdirection)
-                    if not board[newbodyY][newbodyX] == 0:
-                        isHit = True
-                        break
-                    coord3.append([newbodyY, newbodyX])
-                if not isHit:
-                    ebene[depth][3] += wert
-                    q.put((checkdistance, [newheadX, newheadY, newdirection, board,
-                                           own_player["speed"], state["width"], state["height"],
-                                           wert / 2, depth + 1, counter + 1, deadline, 3, coord3,
-                                           links - own_player["speed"], -1, 0]))
+            checkLeftorRight(own_player["x"], own_player["y"], own_player["direction"], board, own_player["speed"],
+                             state["width"],
+                             state["height"], wert, depth, counter, deadline, 3, [], 0, 0, "left", links)
 
             # check-right
-            newdirection = getnewdirection(own_player["direction"], "right")
-            newheadY, newheadX = getnewpos(own_player["x"], own_player["y"], own_player["speed"], newdirection)
-            # Prüfe ob er das Spielfeld verlassen würde, ob Schlange an den neuen Stelle sind
-            if state["height"] > newheadY >= 0 and state["width"] > newheadX >= 0 and board[newheadY][newheadX] == 0:
-                isHit = False
-                coord4.append([newheadY, newheadX])
-                for i in range(1, own_player["speed"]):
-                    if isJump:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
-                        newbodyY, newbodyX = getnewpos(own_player["x"], own_player["y"], 1, newdirection)
-                        if not board[newbodyY][newbodyX] == 0:
-                            isHit = True
-                            break
-                        coord4.append([newbodyY, newbodyX])
-                        break
-                    newbodyY, newbodyX = getnewpos(own_player["x"], own_player["y"], i, newdirection)
-                    if not board[newbodyY][newbodyX] == 0:
-                        isHit = True
-                        break
-                    coord4.append([newbodyY, newbodyX])
-                if not isHit:
-                    ebene[depth][4] += wert
-                    q.put((checkdistance, [newheadX, newheadY, newdirection, board,
-                                           own_player["speed"], state["width"], state["height"],
-                                           wert / 2, depth + 1, counter + 1, deadline, 4, coord4,
-                                           rechts - own_player["speed"], 1, 0]))
+            checkLeftorRight(own_player["x"], own_player["y"], own_player["direction"], board, own_player["speed"],
+                             state["width"],
+                             state["height"], wert, depth, counter, deadline, 4, [], 0, 0, "right", rechts)
 
             # Bearbeite solange Objekte aus der Queue bis diese leer ist oder 1 Sekunde bis zur Deadline verbleibt
             while not q.empty() and not notbremse:
@@ -759,7 +652,7 @@ async def play():
                 for j in range(0, 5):
                     choices[j] += ebene[i][j]
 
-            # Sonderfall myc=0 (sehr unwahrscheinlich). Vollständigkeitshalber dabei
+            # Sonderfall myc=0 (sehr unwahrscheinlich). Vollständigkeitshalber dabei TODO: ist überhaupt möglich?
             if myc == 0:
                 choices = ebene[0]
 
