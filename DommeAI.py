@@ -407,7 +407,7 @@ def overSnake(x, y, board, direction, speed):
     if speed < 3:
         return False
     for i in range(2,speed):
-        newx, newy = getnewpos(x, y, i, direction)
+        newy, newx = getnewpos(x, y, i, direction)
         if board[newy][newx] != 0:
             print("Über Schlange" + str(newy) + " " + str(newx))
             return True
