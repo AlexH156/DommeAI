@@ -21,9 +21,11 @@ import websockets
 
 # TODO Deadline in GUI (verfügbare Zeit)
 # TODO evtl Time API einbauen
+# TODO Queue nach Abbruch löschen/leeren
+# TODO outOfBorder Methode
+# TODO Queue beenden einheitlich in CD/CC entweder clear oder q=Queue()
 
 global ebene
-global notbremse
 global q
 global myc
 
@@ -96,9 +98,10 @@ def getnewpos(x, y, speed, direction):
 
 def checkFront(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord, distance,
                collCounter, checkCounter, sackG):
+    # checkCounter: +1 wenn rechts oder links, +0 wenn vorne
     newaction = action
     init = action is None
-    isCCStraight = checkCounter < 3  # True, wenn Koordinaten nicht geprüft werden müssen
+    coordIgnore = checkCounter < 3  # True, wenn Koordinaten nicht geprüft werden müssen
     isJump = counter % 6 == 0
     newcoord = coord[:]
 
@@ -106,62 +109,69 @@ def checkFront(x, y, direction, board, speed, width, height, wert, depth, counte
     if isJump:
         newbodyY, newbodyX = getnewpos(x, y, 1, direction)
         if height > newbodyY >= 0 and width > newbodyX >= 0 and board[newbodyY][newbodyX] == 0 and (
-                isCCStraight or [newbodyY, newbodyX] not in coord):
+                coordIgnore or [newbodyY, newbodyX] not in coord):
             newcoord.append([newbodyY, newbodyX])
-            newheadY, newheadX = getnewpos(x, y, speed - 1, direction)  #   TODO speed=2 abfangen, sonst doppelte Prüfung
-            if speed > 1 and height > newheadY >= 0 and width > newheadX >= 0 and board[newheadY][newheadX] == 0 and (
-                    isCCStraight or [newheadY, newheadX] not in coord):
+            skip = speed == 2   # SD doesn't have to be checked again if speed==2
+            # Slow-Down
+            newheadY, newheadX = getnewpos(x, y, speed - 1, direction)
+            if skip or (speed > 1 and height > newheadY >= 0 and width > newheadX >= 0 and board[newheadY][newheadX] == 0 and (
+                    coordIgnore or [newheadY, newheadX] not in coord)):
                 newcoord0 = newcoord[:]
                 if speed > 2:
                     newcoord0.append([newheadY, newheadX])
                 if init:
                     newaction = 1
                 ebene[depth][newaction] += wert
-                if sackG and ebene[0][newaction] == 1 and overSnake(x, y, board, direction, speed-1) and not deadend(newheadX, newheadY, board, direction, width, height) < 14:
+                if sackG and ebene[0][newaction] == 1 and overSnake(x, y, board, direction, speed - 1) and not deadend(
+                        newheadX, newheadY, board, direction, width, height) < 14:
                     ebene[0][newaction] = 500
                 q.put((checkchoices, [newheadX, newheadY, direction, board, speed - 1, width, height, wert / 2,
-                                   depth + 1, counter + 1, deadline, newaction, newcoord0, distance, 0, checkCounter,
-                                   sackG]))
+                                      depth + 1, counter + 1, deadline, newaction, newcoord0, distance, 0, checkCounter,
+                                      sackG]))
+            # Change-Nothing
             newheadY, newheadX = getnewpos(x, y, speed, direction)
             if height > newheadY >= 0 and width > newheadX >= 0 and board[newheadY][newheadX] == 0 and (
-                    isCCStraight or [newheadY, newheadX] not in coord):
+                    coordIgnore or [newheadY, newheadX] not in coord):
                 newcoord1 = newcoord[:]
                 if speed > 1:
                     newcoord1.append([newheadY, newheadX])
                 if init:
                     newaction = 2
                 ebene[depth][newaction] += wert
-                if sackG and ebene[0][newaction] == 1 and overSnake(x, y, board, direction, speed) and not deadend(newheadX, newheadY, board, direction, width, height) < 14:
+                if sackG and ebene[0][newaction] == 1 and overSnake(x, y, board, direction, speed) and not deadend(
+                        newheadX, newheadY, board, direction, width, height) < 14:
                     ebene[0][newaction] = 500
                 q.put((checkchoices, [newheadX, newheadY, direction, board, speed, width, height, wert / 2,
-                                   depth + 1, counter + 1, deadline, newaction, newcoord1, distance, 0, checkCounter,
-                                   sackG]))
+                                      depth + 1, counter + 1, deadline, newaction, newcoord1, distance, 0, checkCounter,
+                                      sackG]))
+            # Speed-Up
             newheadY, newheadX = getnewpos(x, y, speed + 1, direction)
-
             if speed < 10 and height > newheadY >= 0 and width > newheadX >= 0 and board[newheadY][newheadX] == 0 and (
-                    isCCStraight or [newheadY, newheadX] not in coord):
+                    coordIgnore or [newheadY, newheadX] not in coord):
                 newcoord2 = newcoord[:]
                 newcoord2.append([newheadY, newheadX])
                 if init:
                     newaction = 0
                 ebene[depth][newaction] += wert
-                if sackG and ebene[0][newaction] == 1 and overSnake(x, y, board, direction, speed+1) and not deadend(newheadX, newheadY, board, direction, width, height) < 14:
+                if sackG and ebene[0][newaction] == 1 and overSnake(x, y, board, direction, speed + 1) and not deadend(
+                        newheadX, newheadY, board, direction, width, height) < 14:
                     ebene[0][newaction] = 500
                 q.put((checkchoices, [newheadX, newheadY, direction, board, speed + 1, width, height, wert / 2,
-                                   depth + 1, counter + 1, deadline, newaction, newcoord2, distance, 0, checkCounter,
-                                   sackG]))
+                                      depth + 1, counter + 1, deadline, newaction, newcoord2, distance, 0, checkCounter,
+                                      sackG]))
     # Vorgehen: Bei nicht-Sprung prüfe sd komplett, dann Kopf cn, dann Kopf su
     else:
         newcoord0 = coord[:]
         hit = False
+        # Slow-Down
         if speed > 1:
             newheadY, newheadX = getnewpos(x, y, speed - 1, direction)
             if height > newheadY >= 0 and width > newheadX >= 0 and board[newheadY][newheadX] == 0 and (
-                    isCCStraight or [newheadY, newheadX] not in coord):
+                    coordIgnore or [newheadY, newheadX] not in coord):
                 newcoord0.append([newheadY, newheadX])
                 for i in range(1, speed - 1):
                     newbodyY, newbodyX = getnewpos(x, y, i, direction)
-                    if board[newbodyY][newbodyX] != 0 or (not isCCStraight and [newbodyY, newbodyX] in coord):
+                    if board[newbodyY][newbodyX] != 0 or (not coordIgnore and [newbodyY, newbodyX] in coord):
                         hit = True
                         break
                     newcoord0.append([newbodyY, newbodyX])
@@ -170,45 +180,52 @@ def checkFront(x, y, direction, board, speed, width, height, wert, depth, counte
                         newaction = 1
                     ebene[depth][newaction] += wert
                     q.put((checkchoices, [newheadX, newheadY, direction, board, speed - 1, width, height, wert / 2,
-                                       depth + 1, counter + 1, deadline, newaction, newcoord0, distance, 0,
-                                       checkCounter, sackG]))
+                                          depth + 1, counter + 1, deadline, newaction, newcoord0, distance, 0,
+                                          checkCounter, sackG]))
             else:
                 hit = True
         if not hit:
+            # Change-Nothing
             newheadY, newheadX = getnewpos(x, y, speed, direction)
             if height > newheadY >= 0 and width > newheadX >= 0 and board[newheadY][newheadX] == 0 and (
-                    isCCStraight or [newheadY, newheadX] not in coord):
+                    coordIgnore or [newheadY, newheadX] not in coord):
                 newcoord1 = newcoord0[:]
                 newcoord1.append([newheadY, newheadX])
                 if init:
                     newaction = 2
                 ebene[depth][newaction] += wert
                 q.put((checkchoices, [newheadX, newheadY, direction, board, speed, width, height, wert / 2,
-                                   depth + 1, counter + 1, deadline, newaction, newcoord1, distance, 0, checkCounter,
-                                   sackG]))
+                                      depth + 1, counter + 1, deadline, newaction, newcoord1, distance, 0, checkCounter,
+                                      sackG]))
+                # Speed-Up
                 newheadY, newheadX = getnewpos(x, y, speed + 1, direction)
                 if speed < 10 and height > newheadY >= 0 and width > newheadX >= 0 and board[newheadY][
-                    newheadX] == 0 and (isCCStraight or [newheadY,newheadX] not in coord):
+                    newheadX] == 0 and (coordIgnore or [newheadY, newheadX] not in coord):
                     newcoord2 = newcoord1[:]
                     newcoord2.append([newheadY, newheadX])
                     if init:
                         newaction = 0
                     ebene[depth][newaction] += wert
                     q.put((checkchoices, [newheadX, newheadY, direction, board, speed + 1, width, height, wert / 2,
-                                       depth + 1, counter + 1, deadline, newaction, newcoord2, distance, 0,
-                                       checkCounter, sackG]))
+                                          depth + 1, counter + 1, deadline, newaction, newcoord2, distance, 0,
+                                          checkCounter, sackG]))
 
 
 def checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord,
                      collCounter, checkCounter, change, distance, sackG):
-    coordIgnore = checkCounter < 2
+    # collCounter: +1 wenn rechts, -1 wenn links, =0 wenn vorne
+    # collCounter == 2: checkright muss nicht geprüft werden
+    # collCounter == -2: checkleft muss nicht geprüft werden
+    # checkCounter: +1 wenn rechts oder links, +0 wenn vorne
+    coordIgnore = checkCounter < 2  # True, wenn Koordinaten nicht geprüft werden müssen
     direction = getnewdirection(direction, change)
     isJump = counter % 6 == 0
     newcoord = coord[:]
 
     newheadY, newheadX = getnewpos(x, y, speed, direction)
     if (change == "left" and collCounter != -2 or change == "right" and collCounter != 2) and height > newheadY >= 0 \
-            and width > newheadX >= 0 and board[newheadY][newheadX] == 0 and (coordIgnore or [newheadY, newheadX] not in coord):
+            and width > newheadX >= 0 and board[newheadY][newheadX] == 0 and (
+            coordIgnore or [newheadY, newheadX] not in coord):
         isHit = False
         newcoord.append([newheadY, newheadX])
         for i in range(1, speed):
@@ -226,23 +243,20 @@ def checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, 
             newcoord.append([newbodyY, newbodyX])
         if not isHit:
             ebene[depth][action] += wert
-            if isJump and ebene[0][action] == 1 and sackG and overSnake(x, y, board, direction, speed) and not deadend(newheadX, newheadY, board, direction, width, height) < 14:
+            if isJump and ebene[0][action] == 1 and sackG and overSnake(x, y, board, direction, speed) and not deadend(
+                    newheadX, newheadY, board, direction, width, height) < 14:
                 ebene[0][action] = 500
             if change == "left":
-                if collCounter > 0:
-                    checkCounter -= 1
-                else:
+                if not collCounter > 0:
                     checkCounter += 1
                 collCounter = min(collCounter - 1, - 1)
             else:
-                if collCounter < 0:
-                    checkCounter -= 1
-                else:
+                if not collCounter < 0:
                     checkCounter += 1
                 collCounter = max(collCounter + 1, 1)
             q.put((checkdistance, [newheadX, newheadY, direction, board, speed, width, height, wert / 2, depth + 1,
-                                       counter + 1, deadline, action, newcoord, distance - speed, collCounter,
-                                       checkCounter, sackG]))
+                                   counter + 1, deadline, action, newcoord, distance - speed, collCounter, checkCounter,
+                                   sackG]))
 
 
 # Return a board that has every possible action from active enemies registered
@@ -300,23 +314,23 @@ def gegnerboard(state, isJump):
 
 
 # Return the count of free fields in the given direction
-def distanz(px, py, board, direction, width, height):
+def distanz(x, y, board, direction, width, height):
     dis = 0
     if direction == "up":
-        while py > 0 and board[py - 1][px] == 0:
-            py -= 1
+        while y > 0 and board[y - 1][x] == 0:
+            y -= 1
             dis += 1
     elif direction == "down":
-        while py < height - 1 and board[py + 1][px] == 0:
-            py += 1
+        while y < height - 1 and board[y + 1][x] == 0:
+            y += 1
             dis += 1
     elif direction == "right":
-        while px < width - 1 and board[py][px + 1] == 0:
-            px += 1
+        while x < width - 1 and board[y][x + 1] == 0:
+            x += 1
             dis += 1
     else:  # left
-        while px > 0 and board[py][px - 1] == 0:
-            px -= 1
+        while x > 0 and board[y][x - 1] == 0:
+            x -= 1
             dis += 1
     return dis
 
@@ -397,7 +411,6 @@ def deadendDir(x, y, board, direction, width, height):
 
 
 def deadend(x, y, board, direction, width, height):
-
     straight = deadendDir(x, y, board, direction, width, height)
     right = deadendDir(x, y, board, getnewdirection(direction, "right"), width, height)
     left = deadendDir(x, y, board, getnewdirection(direction, "left"), width, height)
@@ -409,7 +422,7 @@ def deadend(x, y, board, direction, width, height):
 def overSnake(x, y, board, direction, speed):
     if speed < 3:
         return False
-    for i in range(2,speed):
+    for i in range(2, speed):
         newy, newx = getnewpos(x, y, i, direction)
         if board[newy][newx] != 0:
             # print("Über Schlange" + str(newy) + " " + str(newx))
@@ -473,21 +486,19 @@ def checkdistance(x, y, direction, board, speed, width, height, wert, depth, cou
                   distance, collCounter, checkCounter, sackG):
     global ebene
     global q
-    global notbremse
     global myc
 
     global checkD
     checkD += 1  # Debugging
 
-    if not len(ebene) > depth:
-        ebene.append([0, 0, 0, 0, 0])
-        myc = depth
-
     # Wenn weniger als eine Sekunde bis zur Deadline verbleibt, bearbeite die Queue nicht weiter
     if time.time() + 1 > deadline:
         if myc > 4:  # still to be tested
-            notbremse = True
             return
+
+    if not len(ebene) > depth:
+        ebene.append([0, 0, 0, 0, 0])
+        myc = depth
 
     # if distance > speed+1:
     # ebene += ..., etc
@@ -610,27 +621,20 @@ def checkdistance(x, y, direction, board, speed, width, height, wert, depth, cou
 
 def checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord, distance,
                  collCounter, checkCounter, sackG):
-    # collCounter: +1 wenn rechts, -1 wenn links, =0 wenn vorne
-    # collCounter == 2: checkright muss nicht geprüft werden
-    # collCounter == -2: checkleft muss nicht geprüft werden
-    # checkCounter: +1 wenn rechts, -1 wenn links, +0 wenn vorne
-    # 3 > checkCounter > -3 : Koordinaten müssen nach vorne nicht geprüft werden
-    # checkCounter < 2: bei checkright müssen coords nicht geprüft werden
-    # checkCounter > -2: bei checkleft müssen coords nicht geprüft werden
-
     global ebene
-    global notbremse
     global myc
+    global q
+
+    # Wenn weniger als eine Sekunde bis zur Deadline verbleibt, bearbeite die Queue nicht weiter
+    if time.time() + 1 > deadline:
+        with q.mutex:   # oder q = Queue()
+            q.queue.clear()
+        if myc > 4:  # still to be tested
+            return
 
     if not len(ebene) > depth:
         ebene.append([0, 0, 0, 0, 0])
         myc = depth
-
-        # Wenn weniger als eine Sekunde bis zur Deadline verbleibt, bearbeite die Queue nicht weiter
-    if time.time() + 1 > deadline:
-        if myc > 4:  # still to be tested
-            notbremse = True
-            return
 
     # check-sd/cn/su
     checkFront(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord, 0,
@@ -645,11 +649,10 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                      collCounter, checkCounter, "right", 0, sackG)
 
 
-async def play():
+async def play(show=False):
     global ebene
     global q
     global myc
-    global notbremse
 
     global checkD  # Debugging
 
@@ -658,9 +661,8 @@ async def play():
     key = open(filename, "r").read().strip()
     async with websockets.connect(f"{url}?key={key}") as websocket:
         print("Waiting for initial state...", flush=True)
-        counter = 0
+        counter = 0  # The round-count to know, when the jump is
         choices_actions = ["speed_up", "slow_down", "change_nothing", "turn_left", "turn_right"]
-        show = True  # Bestimmt, ob das GUI angezeigt wird
 
         while True:
             state_json = await websocket.recv()
@@ -686,7 +688,6 @@ async def play():
             isJump = counter % 6 == 0
             ebene = [[0, 0, 0, 0, 0]]
             q = Queue()
-            notbremse = False
             deadline = dp.parse(state["deadline"]).timestamp()
             checks, checkD = 0, 0  # Debugging
 
@@ -697,9 +698,7 @@ async def play():
             LR = maxLR(own["x"], own["y"], board, own["direction"], state["width"], state["height"])
             deDir = deadendDir(own["x"], own["y"], board, own["direction"], state["width"], state["height"])
             de = deadend(own["x"], own["y"], board, own["direction"], state["width"], state["height"])
-            sackG = False
-            if de < 14:
-                sackG = True
+            sackG = de < 14
 
             # print("distanz nach vorne:", vorne)
             # print("rechts:", rechts)
@@ -710,8 +709,10 @@ async def play():
             for whichBoard in [board, state["cells"]]:
                 # Prüfe Abstand nach Vorne, Links und Rechts
                 vorne = distanz(own["x"], own["y"], whichBoard, own["direction"], state["width"], state["height"])
-                links = distanz(own["x"], own["y"], whichBoard, getnewdirection(own["direction"], "left"), state["width"], state["height"])
-                rechts = distanz(own["x"], own["y"], whichBoard, getnewdirection(own["direction"], "right"), state["width"], state["height"])
+                links = distanz(own["x"], own["y"], whichBoard, getnewdirection(own["direction"], "left"),
+                                state["width"], state["height"])
+                rechts = distanz(own["x"], own["y"], whichBoard, getnewdirection(own["direction"], "right"),
+                                 state["width"], state["height"])
 
                 if vorne > own["speed"]:
                     checkWhat = checkdistance
@@ -722,15 +723,15 @@ async def play():
                           state["width"], state["height"], 1, depth, counter, deadline, None, [], vorne, 0, 0, sackG)
 
                 # check-left
-                checkLeftorRight(own["x"], own["y"], own["direction"], whichBoard, own["speed"],state["width"],
+                checkLeftorRight(own["x"], own["y"], own["direction"], whichBoard, own["speed"], state["width"],
                                  state["height"], 1, depth, counter, deadline, 3, [], 0, 0, "left", links, sackG)
 
                 # check-right
-                checkLeftorRight(own["x"], own["y"], own["direction"], whichBoard, own["speed"],state["width"],
+                checkLeftorRight(own["x"], own["y"], own["direction"], whichBoard, own["speed"], state["width"],
                                  state["height"], 1, depth, counter, deadline, 4, [], 0, 0, "right", rechts, sackG)
 
                 # Bearbeite solange Objekte aus der Queue bis diese leer ist oder 1 Sekunde bis zur Deadline verbleibt
-                while not q.empty() and not notbremse:
+                while not q.empty():
                     checks += 1  # Debugging
                     f, args = q.get()
                     f(*args)
@@ -749,5 +750,4 @@ async def play():
                 anzeige(state, counter, action, choices, myc - 1, LR, de, deDir, sackG)
             await websocket.send(action_json)
 
-
-asyncio.get_event_loop().run_until_complete(play())
+asyncio.get_event_loop().run_until_complete(play(show=True))
