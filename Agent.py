@@ -42,8 +42,9 @@ class Agent:
         self.gamma = 0.5  # Discount factor for every new Layer
         self.value = 1
         self.deadline = 0
-        self.board = board
-        self.sackG = False
+        self.board = []
+        self.isDeadend = False
+        self.safeZone = False
         self.counter = 0
         self.safeZoneBias = 0.1  # Bias pro speed_down and contra speed_up if in a safeZone
         self.deadendLimit = 14  # Limit, when a situation is considered a deadend
@@ -60,7 +61,14 @@ class Agent:
         choices = [0, 0, 0, 0, 0]
 
         print(self.logActionValue)
-        for i in range(0, 5):
+
+        if self.safeZone:
+            self.logActionValue[0][1] *= (1 + self.safeZoneBias)  # prefer speed_down, if in a safeZone
+            self.logActionValue[0][0] *= (1 - self.safeZoneBias)  # punish speed_up, if in a safeZone
+
+        # Gather actions, that don't reach the deepest depth
+        noDepth = []
+        for i in range(0, len(choices)):
             if len(self.logActionValue) > 1:
                 if self.logActionValue[-2][i] == 0:
                     noDepth.append(i)
@@ -235,9 +243,10 @@ class Agent:
         newcoord = coord[:]
 
         newheadY, newheadX = getNewPos(x, y, speed, direction)
-        if (change == "left" and collCounter != -2 or change == "right" and collCounter != 2) and self.isInBound(
-                newheadX, newheadY) and self.board[newheadY][newheadX] == 0 and (
-                coordIgnore or [newheadY, newheadX] not in coord):
+        if (change == "left" and collCounter != -2 or change == "right" and collCounter != 2) and self.isValid(newheadX,
+                                                                                                               newheadY,
+                                                                                                               coordIgnore,
+                                                                                                               coord):
             newcoord.append([newheadY, newheadX])
             for i in range(1, speed):
                 if isJumping:  # If it is the sixth round, skip the occuring gap
@@ -511,7 +520,7 @@ class Agent:
         isJumping = self.roundNumber % 6 == 0
         self.logActionValue = [[0, 0, 0, 0, 0]]
         self.deadline = dp.parse(state["deadline"]).timestamp()
-        checks, checkD = 0, 0  # Debugging
+        executedJobs, checkD = 0, 0  # Debugging
 
         # create a board, which includes every next move of the active enemies
         # also includes moves leading to a potential death of an enemy
@@ -534,10 +543,9 @@ class Agent:
         # with the basic board, that doesn´t have the enemies' possible moves included
         while True:
             # check the unoccupied distance in all directions
-
-            straightDistance = self.getDistance(own["x"], own["y"], own["direction"])
-            leftDistance = self.getDistance(own["x"], own["y"], getNewDirection(own["direction"], "left"))
-            rightDistance = self.getDistance(own["x"], own["y"], getNewDirection(own["direction"], "right"))
+            straightDistance, sx, sy = self.getDistance(own["x"], own["y"], own["direction"])
+            leftDistance, lx, ly = self.getDistance(own["x"], own["y"], getNewDirection(own["direction"], "left"))
+            rightDistance, rx, ry = self.getDistance(own["x"], own["y"], getNewDirection(own["direction"], "right"))
 
             self.checkFront(own["x"], own["y"], own["direction"], own["speed"], depth,
                             None, [], straightDistance, 0, 0)
@@ -552,7 +560,7 @@ class Agent:
 
             # works on objects in the queue until it is either empty or the deadline is just one second away
             while not self.jobQueue.empty():
-                checks += 1  # Debugging
+                executedJobs += 1  # Debugging
                 f, args = self.jobQueue.get()
                 f(*args)
 
