@@ -25,7 +25,14 @@ class Agent:
     board: game board
 
     """
-    def __init__(self, board,width, height):
+
+    def __init__(self, width, height):
+        """
+        Initialise the following variables at the start of a game
+
+        :param width: the width of the board
+        :param height: the height of the board
+        """
         self.width = width
         self.height = height
         self.roundNumber = 0
@@ -42,24 +49,28 @@ class Agent:
     def calcAction(self):
         """
         Aggregates the logActionValue by adding every layer values for every of the five possible actions.
+
         :return: action: best action based on the calculated values
                  choices: list of values, one value for every action
         """
         choices = [0, 0, 0, 0, 0]
 
-        # Actions, that reach the deepest depth will be preferred (+10000)
         print(self.logActionValue)
         for i in range(0, 5):
             if len(self.logActionValue) > 1:
-                if self.logActionValue[-2][i] != 0:
-                    self.logActionValue[0][i] += 10000
+                if self.logActionValue[-2][i] == 0:
+                    noDepth.append(i)
             else:
                 choices = self.logActionValue[0]
 
         # Add up the 2-D-array logActionValue to a 1-D-array choices
-        for i in range(0, len(self.logActionValue)-1):
-            for j in range(0, 5):
+        for i in range(0, len(self.logActionValue) - 1):
+            for j in range(0, len(choices)):
                 choices[j] += self.logActionValue[i][j]
+
+        # Actions, that don't reach the deepest depth will set to -1
+        for i in noDepth:
+            choices[i] = -1
 
         # Choose the best action
         print(choices)
@@ -75,16 +86,50 @@ class Agent:
         """
         return self.height > y >= 0 and self.width > x >= 0
 
-    def checkFront(self, x, y, direction, speed, depth, initialAction, coord, distance,
-                   collCounter, checkCounter):
+    def isValid(self, x, y, coordIgnore, coord):
         """
+        Combination of isInBound and isNotTaken
+        """
+        return self.isInBound(x, y) and self.isNotTaken(x, y, coordIgnore, coord)
+
+    def isNotTaken(self, x, y, coordIgnore, coord):
+        """
+        Check, whether the position is already taken by an enemy snake or the own
+
+        :param x: coordinate x
+        :param y: coordinate y
+        :param coordIgnore: If True, coords do not have to be checked
+        :param coord: A list of coordinates, where the own snake was
+        :return:
+        """
+        return self.board[y][x] == 0 and (coordIgnore or [y, x] not in coord)
+
+    def isAbleToJumpInDeadend(self, newAction, x, y, direction, speed, newX, newY):
+        """
+        :param newAction: the action on that the jump is based
+        :param x: the current x coordinate
+        :param y: the current y coordinate
+        :param direction: the current direction
+        :param speed: the current speed
+        :param newX: the new x coordinate after jump
+        :param newY: the new y coordinate after jump
+        :return: True, if the snake is in a dead end, has the ability to jump over a snake into a field,
+                that has is no dead end. self.logActionValue[0][newAction] == 1 checks if he already calculated it
+        """
+        return self.isDeadend and self.logActionValue[0][newAction] == 1 and \
+               overSnake(x, y, self.board, direction, speed) and not self.checkDeadend(newX, newY, direction, 1) < 14
+
+    def checkFront(self, x, y, direction, speed, depth, initialAction, coord, distance, collCounter, checkCounter):
+        """
+        #TODO
         Check if the actions slow-down, change-nothing and speed-up are possible. If an action is possible,
         add the value for the current depth to logActionValue and add all 5 sub-actions to the Queue
+
         :param x: the coordinate x of the snakes' head
         :param y: the coordinate y of the snakes' head
         :param direction: the direction the snake is headed
         :param speed: with what speed the snake is going (0<speed<11)
-        :param depth: #TODO
+        :param depth: the current depth of how deep the snake checked its moves
         :param initialAction: either a given action (0 to 4) or None. Then initialise is for every case (SD, CN ,SU)
         :param coord: a list of coordinates, where the snake already was. Used to prevent hitting itself
         :param distance: the number of free fields in the current direction
@@ -92,123 +137,86 @@ class Agent:
         :param checkCounter: number of turns in general
         :return: returns if move is not possible and therefore CN/SU are not possible as well
         """
-        newAction = initialAction
-        init = initialAction is None  # True, if this is the first call of checkFront
-        coordIgnore = checkCounter < 3  # True, if coords doesn't have to be checked
+        stepVectorY, stepVectorX = getStepVector(direction)
+
+        coordIgnore = checkCounter < 3
+        xValid = x + stepVectorX
+        yValid = y + stepVectorY
+
+        if not self.isValid(xValid, yValid, coordIgnore, coord):
+            return
+
         isJumping = self.counter % 6 == 0
+        move = [False, False, False]
+
+        skip = distance > speed  # True, if other checks can be skipped due to distance
+
         newCoord = coord[:]
+        newCoord.append([yValid, xValid])
+        newCoord0, newCoord1, newCoord2 = [], [], []
 
-        # Procedure: if there is a jump coming up, first check the common tail, then the specific head of the snake
-        if isJumping:
-            # common tail
-            newBodyY, newBodyX = getNewPos(x, y, 1, direction)
-            if self.isInBound(newBodyX, newBodyY) and self.board[newBodyY][newBodyX] == 0 \
-                    and (coordIgnore or [newBodyY, newBodyX] not in coord):
-                newCoord.append([newBodyY, newBodyX])
+        xSD, ySD = x + stepVectorX * (speed - 1), y + stepVectorY * (speed - 1)
+        if skip or self.isInBound(xSD, ySD):
+            if speed > 1 and (skip or self.isNotTaken(xSD, ySD, coordIgnore, coord)):
+                move[0] = True
+                if speed > 2:
+                    newCoord0.append([ySD, xSD])
 
-                # Slow-Down
-                newHeadY, newHeadX = getNewPos(x, y, speed - 1, direction)
-                if speed == 2 or (speed > 1 and self.isInBound(newHeadX, newHeadY) and self.board[newHeadY][newHeadX] == 0 and (coordIgnore or [newHeadY, newHeadX] not in coord)):
-                    newCoord0 = newCoord[:]
-                    if speed > 2:
-                        newCoord0.append([newHeadY, newHeadX])
-                    if init:
-                        newAction = 1
-                    self.logActionValue[depth][newAction] += self.value
-                    if self.sackG and self.logActionValue[0][newAction] == 1 and overSnake(x, y, self.board, direction, speed - 1) and not self.checkDeadend(newHeadX, newHeadY, direction) < 14:
-                        self.logActionValue[0][newAction] = 500
-                    self.jobQueue.put((self.checkchoices, [newHeadX, newHeadY, direction, speed - 1, depth + 1,
-                                                           newAction, newCoord0, distance, 0, checkCounter]))
-
-                # Change-Nothing
-                newHeadY, newHeadX = getNewPos(x, y, speed, direction)
-                if self.isInBound(newHeadX, newHeadY) and self.board[newHeadY][newHeadX] == 0 \
-                        and (coordIgnore or [newHeadY, newHeadX] not in coord):
-                    newCoord1 = newCoord[:]
+            xCN, yCN = xSD + stepVectorX, ySD + stepVectorY
+            if speed == 1 or skip or self.isInBound(xCN, yCN):
+                if speed == 1 or skip or self.isNotTaken(xCN, yCN, coordIgnore, coord):
+                    move[1] = True
                     if speed > 1:
-                        newCoord1.append([newHeadY, newHeadX])
-                    if init:
-                        newAction = 2
-                    self.logActionValue[depth][newAction] += self.value
-                    if self.sackG and self.logActionValue[0][newAction] == 1 \
-                            and overSnake(x, y, self.board, direction, speed) and not self.checkDeadend(
-                            newHeadX, newHeadY, direction) < 14:
-                        self.logActionValue[0][newAction] = 500
-                    self.jobQueue.put((self.checkchoices, [newHeadX, newHeadY, direction, speed,depth + 1, newAction,
-                                                           newCoord1, distance, 0, checkCounter]))
+                        newCoord1.append([yCN, xCN])
 
-                # Speed-Up
-                newHeadY, newHeadX = getNewPos(x, y, speed + 1, direction)
-                if speed < 10 and self.isInBound(newHeadX, newHeadY) and self.board[newHeadY][newHeadX] == 0 and (
-                        coordIgnore or [newHeadY, newHeadX] not in coord):
-                    newCoord2 = newCoord[:]
-                    newCoord2.append([newHeadY, newHeadX])
-                    if init:
-                        newAction = 0
-                    self.logActionValue[depth][newAction] += self.value
-                    if self.sackG and self.logActionValue[0][newAction] == 1 and overSnake(x, y, self.board, direction,
-                                                                                      speed + 1) and not self.checkDeadend(
-                            newHeadX, newHeadY, direction) < 14:
-                        self.logActionValue[0][newAction] = 500
-                    self.jobQueue.put((self.checkchoices, [newHeadX, newHeadY, direction, speed + 1, depth + 1,
-                                                           newAction, newCoord2, distance, 0, checkCounter]))
-
-        # Procedure: If there is no Jump, check SD completely, then the head of CN, then the head of SU
+                if speed < 10:
+                    xSU, ySU = xCN + stepVectorX, yCN + stepVectorY
+                    if skip or self.isValid(xSU, ySU, coordIgnore, coord):
+                        move[2] = True
+                        newCoord2.append([ySU, xSU])
         else:
-            newCoord0 = coord[:]
-            # Slow-Down
-            if speed > 1:
-                newHeadY, newHeadX = getNewPos(x, y, speed - 1, direction)
-                if self.isInBound(newHeadX, newHeadY) and self.board[newHeadY][newHeadX] == 0 and (
-                        coordIgnore or [newHeadY, newHeadX] not in coord):
-                    newCoord0.append([newHeadY, newHeadX])
-                    for i in range(1, speed - 1):
-                        newBodyY, newBodyX = getNewPos(x, y, i, direction)
-                        if self.board[newBodyY][newBodyX] != 0 or (not coordIgnore and [newBodyY, newBodyX] in coord):
-                            return
-                        newCoord0.append([newBodyY, newBodyX])
-                    if init:
-                        newAction = 1
-                    self.logActionValue[depth][newAction] += self.value
-                    self.jobQueue.put((self.checkchoices, [newHeadX, newHeadY, direction, speed - 1, depth + 1,
-                                                           newAction, newCoord0, distance, 0, checkCounter]))
-                else:
+            return
+
+        if not isJumping:
+            xAdd, yAdd = x + stepVectorX, y + stepVectorY
+
+            for i in range(2, speed - 1):
+                xAdd, yAdd = xAdd + stepVectorX, yAdd + stepVectorY
+                if not skip and not self.isNotTaken(xAdd, yAdd, coordIgnore, coord):
                     return
+                newCoord.append([yAdd, xAdd])
 
-            # Change-Nothing
-            newHeadY, newHeadX = getNewPos(x, y, speed, direction)
-            if self.isInBound(newHeadX, newHeadY) and self.board[newHeadY][newHeadX] == 0 and \
-                    (coordIgnore or [newHeadY, newHeadX] not in coord):
-                newCoord1 = newCoord0[:]
-                newCoord1.append([newHeadY, newHeadX])
-                if init:
-                    newAction = 2
-                self.logActionValue[depth][newAction] += self.value
-                self.jobQueue.put((self.checkchoices, [newHeadX, newHeadY, direction, speed, depth + 1, newAction,
-                                                       newCoord1, distance, 0, checkCounter]))
+            move[1] = move[1] and (move[0] or speed == 1)
+            move[2] = move[2] and move[1]
 
-                # Speed-Up
-                newHeadY, newHeadX = getNewPos(x, y, speed + 1, direction)
-                if speed < 10 and self.isInBound(newHeadX, newHeadY) and self.board[newHeadY][newHeadX] == 0 \
-                        and (coordIgnore or [newHeadY, newHeadX] not in coord):
-                    newCoord2 = newCoord1[:]
-                    newCoord2.append([newHeadY, newHeadX])
-                    if init:
-                        newAction = 0
-                    self.logActionValue[depth][newAction] += self.value
-                    self.jobQueue.put((self.checkchoices, [newHeadX, newHeadY, direction, speed + 1,depth + 1,
-                                                           newAction, newCoord2, distance, 0, checkCounter]))
+        init = initialAction is None
+        for i in range(3):
 
-    def checkLeftorRight(self, x, y, direction, speed, depth, action, coord, collCounter,
-                         checkCounter, change, distance):
+            if init:
+                initialAction = [1, 2, 0][i]
+
+            if move[i]:
+                newActionCoord = [newCoord0, newCoord1, newCoord2][i] + newCoord
+                self.logActionValue[depth][initialAction] += self.value
+                newSpeed = (speed + i - 1)
+                newX, newY = x + stepVectorX * newSpeed, y + stepVectorY * newSpeed
+                if self.isAbleToJumpInDeadend(initialAction, x, y, direction, newSpeed, newX, newY):
+                    self.logActionValue[0][initialAction] = 500
+                self.jobQueue.put((self.checkchoices, [newX, newY, direction, newSpeed, depth + 1,
+                                                       initialAction, newActionCoord, distance - newSpeed, 0,
+                                                       checkCounter]))
+
+    def checkLeftorRight(self, x, y, direction, speed, depth, action, coord, distance, collCounter,
+                         checkCounter, change):
         """
         Check if the action left/right is possible. If it is possible,
         add the value for the current depth to logActionValue and add all 5 sub-actions to the Queue
+
         :param x: the coordinate x of the snakes' head
         :param y: the coordinate y of the snakes' head
         :param direction: the direction the snake is headed
         :param speed: with what speed the snake is going (0<speed<11)
-        :param depth: TODO
+        :param depth: the current depth of how deep the snake checked its moves
         :param action: the action on which this move is first based
         :param coord: a list of coordinates, where the snake already was. Used to prevent hitting itself
         :param distance: the number of free fields in the current direction
@@ -217,7 +225,7 @@ class Agent:
         :param change: Either "left" or "right". Determines which direction should be checked
         :return: returns if move is not possible and therefore CN/SU are not possible as well
         """
-        coordIgnore = checkCounter < 2  # True, if coords doesn't have to be checked, because he didn't turn twice
+        coordIgnore = checkCounter < 2  # True, if coords doesn't have to be checked, because snake didn't turn twice
         direction = getNewDirection(direction, change)
         isJumping = self.counter % 6 == 0
         newcoord = coord[:]
@@ -239,9 +247,7 @@ class Agent:
                     return
                 newcoord.append([newbodyY, newbodyX])
             self.logActionValue[depth][action] += self.value
-            if isJumping and self.logActionValue[0][action] == 1 and self.sackG \
-                    and overSnake(x, y, self.board, direction, speed) and not self.checkDeadend(
-                    newheadX, newheadY, direction) < 14:
+            if self.isAbleToJumpInDeadend(action, x, y, direction, speed, newheadX, newheadY):
                 self.logActionValue[0][action] = 500
             if change == "left":
                 if collCounter <= 0:
@@ -256,8 +262,8 @@ class Agent:
             # if distance == 0 and myc < 6 and coordIgnore:
             #     distance = self.getDistance(newheadX, newheadY, self.board, direction, self.width, self.height) + speed
 
-            self.jobQueue.put((self.checkdistance, [newheadX, newheadY, direction, speed, depth + 1,
-                                      action, newcoord, distance - speed, collCounter,checkCounter]))
+            self.jobQueue.put((self.checkchoices, [newheadX, newheadY, direction, speed, depth + 1,
+                                                   action, newcoord, distance - speed, collCounter, checkCounter]))
 
     def constructEnemyBoard(self, state, isJumping):
         """Calculates the Board with every possible step of the enemies, to dodge an overlap in the next
@@ -359,143 +365,19 @@ class Agent:
             while x > 0 and self.board[y][x - 1] == 0:
                 x -= 1
                 dis += 1
-        return dis
-
-    # TODO In diesem Szenario leicht anderes Ergebnis
-    def checkdistance(self, x, y, direction, speed, depth, action, coord,
-                      distance, collCounter, checkCounter):
-        # self.checkD += 1  # Debugging
-
-        if self.checkDeadline():
-            return
-
-        self.checkNewLayer(depth)
-
-        # if distance > speed+1:
-        # logActionValue += ..., etc
-        # add to Queue: SU, CN, SD (CheckDistance)
-        # board und cd werte jeweils aktualisieren
-
-        # checkleft, checkright
-
-        # ist es in diesem Schritt möglich? -> CC
-        # elif distance == speed+1:
-        # logActionValue += ..., etc
-        # add to Queue: SU, CN, SD (CheckChoices)
-        # board und cc werte jeweils aktualisieren
-
-        # ist es in diesem Zug möglich
-        if distance > speed:
-            if distance == (speed + 1):
-                checkWhat = self.checkchoices
-            else:
-                checkWhat = self.checkdistance
-
-            newaction = action
-            init = action is None
-            isJumping = self.counter % 6 == 0
-
-            newcoord = coord[:]
-
-            # ist es evtl im nächsten Schritt möglich? -> CD
-            if isJumping:
-                newy, newx = getNewPos(x, y, 1, direction)
-                newcoord.append([newy, newx])
-
-                # speed_down in queue
-                if speed > 1:
-                    newy, newx = getNewPos(x, y, speed - 1, direction)
-                    newcoord0 = newcoord[:]
-                    if speed > 2:
-                        newcoord0.append([newy, newx])
-                    if init:
-                        newaction = 1
-                    self.logActionValue[depth][newaction] += self.value
-                    self.jobQueue.put((checkWhat, [newx, newy, direction, speed - 1,
-                                                   depth + 1, newaction, newcoord0,
-                                                   distance - (speed - 1), 0, checkCounter]))
-
-                # change_nothing
-                newy, newx = getNewPos(x, y, speed, direction)
-                newcoord1 = newcoord[:]
-                newcoord1.append([newy, newx])
-                if init:
-                    newaction = 2
-                self.logActionValue[depth][newaction] += self.value
-                self.jobQueue.put((checkWhat, [newx, newy, direction, speed,
-                                               depth + 1, newaction, newcoord1, distance - speed, 0, checkCounter]))
-                # speed_up
-                if speed < 10:
-                    newy, newx = getNewPos(x, y, speed + 1, direction)
-                    newcoord2 = newcoord[:]
-                    newcoord2.append([newy, newx])
-                    if init:
-                        newaction = 0
-                    self.logActionValue[depth][newaction] += self.value
-                    self.jobQueue.put((checkWhat, [newx, newy, direction, speed + 1,
-                                                   depth + 1, newaction, newcoord2,
-                                                   distance - (speed + 1), 0, checkCounter]))
-            else:
-                if speed > 1:
-                    for i in range(1, speed - 1):
-                        newyy, newxx = getNewPos(x, y, i, direction)
-                        newcoord.append([newyy, newxx])
-                    # speed_down
-                    newy, newx = getNewPos(x, y, speed - 1, direction)
-                    if speed > 2:
-                        newcoord.append([newy, newx])
-                    if init:
-                        newaction = 1
-                    self.logActionValue[depth][newaction] += self.value
-                    self.jobQueue.put((checkWhat, [newx, newy, direction, speed - 1,
-                                                   depth + 1, newaction, newcoord,
-                                                   distance - (speed - 1), 0, checkCounter]))
-                # change_nothing
-                newy, newx = getNewPos(x, y, speed, direction)
-                newcoord1 = newcoord[:]
-                newcoord1.append([newy, newx])
-                if init:
-                    newaction = 2
-                self.logActionValue[depth][newaction] += self.value
-                self.jobQueue.put((checkWhat, [newx, newy, direction, speed, depth + 1, newaction, newcoord1,
-                                               distance - speed, 0, checkCounter]))
-
-                # speed_up
-                if speed < 10:
-                    newy, newx = getNewPos(x, y, speed + 1, direction)
-                    newcoord2 = newcoord1[:]
-                    newcoord2.append([newy, newx])
-                    if init:
-                        newaction = 0
-                    self.logActionValue[depth][newaction] += self.value
-                    self.jobQueue.put((checkWhat, [newx, newy, direction, speed + 1,
-                                                   depth + 1, newaction, newcoord2,
-                                                   distance - (speed + 1), 0, checkCounter]))
-
-            # init bedeutet ist erster Aufruf und daher wird LR extra aufgerufen
-            if not init:
-                # check-left
-                self.checkLeftorRight(x, y, direction, speed, depth, action,
-                                      coord, collCounter, checkCounter, "left", 0)
-
-                # check-right
-                self.checkLeftorRight(x, y, direction, speed, depth, action,
-                                      coord, collCounter, checkCounter, "right", 0)
-
-        # If the distance is not bigger than the speed, call checkchoices to check for possible jumps
-        else:
-            self.checkchoices(x, y, direction, speed, depth, action, coord, 0, collCounter, checkCounter)
+        return dis, x, y
 
     def checkchoices(self, x, y, direction, speed, depth, action, coord, distance,
                      collCounter, checkCounter):
         """
         First, check if less than a second to the deadline is left. If so, drop the Queue and return
         If not, check if a new layer has been reached. Then call functions to check the 5 actions
+
         :param x: the coordinate x of the snakes' head
         :param y: the coordinate y of the snakes' head
         :param direction: the direction the snake is headed
         :param speed: with what speed the snake is going (0<speed<11)
-        :param depth: TODO
+        :param depth: the current depth of how deep the snake checked its moves
         :param action: the action on which this move is first based
         :param coord: a list of coordinates, where the snake already was. Used to prevent hitting itself
         :param distance: the number of free fields in the current direction
@@ -510,13 +392,13 @@ class Agent:
         self.checkNewLayer(depth)
 
         # Check-SD/CN/SU
-        self.checkFront(x, y, direction, speed, depth, action, coord, 0, collCounter, checkCounter)
+        self.checkFront(x, y, direction, speed, depth, action, coord, distance, collCounter, checkCounter)
 
         # Check-Left
-        self.checkLeftorRight(x, y, direction, speed, depth, action, coord, collCounter, checkCounter, "left", 0)
+        self.checkLeftorRight(x, y, direction, speed, depth, action, coord, 0, collCounter, checkCounter, "left")
 
         # Check-Right
-        self.checkLeftorRight(x, y, direction, speed, depth, action, coord, collCounter, checkCounter, "right", 0)
+        self.checkLeftorRight(x, y, direction, speed, depth, action, coord, 0, collCounter, checkCounter, "right")
 
     # TODO evtl durch 2 aufrufe von getDistance ersetzen
     # computes the maximum distance to the left and right of a direction and coordinates
@@ -568,71 +450,36 @@ class Agent:
         return max(ld, rd)
 
     # computes the maximum possible number of fields in one direction including one turn at the end
-    def deadendDir(self, x, y, direction):
-        px = x
-        py = y
-
-        dis = 0
-        if direction == "up":
-            while py > 0 and self.board[py - 1][px] == 0:
-                py -= 1
-                dis += 1
-        elif direction == "down":
-            while py < self.height - 1 and self.board[py + 1][px] == 0:
-                py += 1
-                dis += 1
-        elif direction == "right":
-            while px < self.width - 1 and self.board[py][px + 1] == 0:
-                px += 1
-                dis += 1
-        else:  # left
-            while px > 0 and self.board[py][px - 1] == 0:
-                px -= 1
-                dis += 1
-
-        LR = self.maxLR(px, py, direction)
-
-        while LR == 0:  # if maxLR == 0: check one step back
-            if direction == "up":   # TODO testen
-                if py < y:
-                    py += 1
-                    dis -= 1
-                else:
-                    break
-            elif direction == "down":
-                if py > y:
-                    py -= 1
-                    dis -= 1
-                else:
-                    break
-            elif direction == "right":
-                if px > x:
-                    px -= 1
-                    dis -= 1
-                else:
-                    break
-            else:  # left
-                if px < x:
-                    px += 1
-                    dis -= 1
-                else:
-                    break
-            LR = self.maxLR(px, py, direction)
-
-        return dis + LR
-
-    # computes a value describing whether the given coordinates are inside a deadend
-    # the lower the value, the closer the space (value < 14 = deadend)
-    def checkDeadend(self, x, y, direction):
-        straight = self.deadendDir(x, y, direction)
-        right = self.deadendDir(x, y, getNewDirection(direction, "right"))
-        left = self.deadendDir(x, y, getNewDirection(direction, "left"))
-        return max(straight, right, left)
+    def checkDeadend(self, x, y, direction, limitIndex):
+        """
+        computes the T distance in all directions
+        if the last coordinate in the direction does not allow for further moves,
+        it continues with the coordinates before that
+        If the T distance is bigger than the given limitIndex, return it
+        :param x: x coordinate
+        :param y: y coordinate
+        :param direction: direction of player
+        :param limitIndex: 1: test until deadendLimit, 0: test until safeZoneLimit
+        :return: biggest T distance
+        """
+        result = 0
+        limit = [self.safeZoneLimit, self.deadendLimit][limitIndex]
+        for newDir in [direction, getNewDirection(direction, "left"), getNewDirection(direction, "right")]:
+            dis, px, py = self.getDistance(x, y, newDir)
+            LR = self.maxLR(px, py, newDir)
+            while LR == 0 and dis > 0:  # if maxLR == 0: check one step back
+                px, py, dis = discardImpasse(px, py, dis, newDir)
+                LR = self.maxLR(px, py, newDir)
+            if dis + LR > limit:
+                return dis + LR
+            elif dis + LR > result:
+                result = dis + LR
+        return result
 
     def checkNewLayer(self, depth):
         """
         If logActionValue is not longer than the depth, append it, and update some variables for the new layer
-        :param depth: #TODO
+        :param depth: the level on which the snake checks the possible moves
         """
         if not len(self.logActionValue) > depth:
             self.logActionValue.append([0, 0, 0, 0, 0])
@@ -682,21 +529,16 @@ class Agent:
             leftDistance = self.getDistance(own["x"], own["y"], getNewDirection(own["direction"], "left"))
             rightDistance = self.getDistance(own["x"], own["y"], getNewDirection(own["direction"], "right"))
 
-            if straightDistance > own["speed"]:
-                checkWhat = self.checkdistance
-            else:
-                checkWhat = self.checkFront
-
-            checkWhat(own["x"], own["y"], own["direction"], own["speed"], depth,
-                      None, [], straightDistance, 0, 0)
+            self.checkFront(own["x"], own["y"], own["direction"], own["speed"], depth,
+                            None, [], straightDistance, 0, 0)
 
             # check-left
             self.checkLeftorRight(own["x"], own["y"], own["direction"], own["speed"], depth,
-                                  3, [], 0, 0, "left", leftDistance)
+                                  3, [], leftDistance, 0, 0, "left")
 
             # check-right
             self.checkLeftorRight(own["x"], own["y"], own["direction"], own["speed"], depth,
-                                  4, [], 0, 0, "right", rightDistance)
+                                  4, [], rightDistance, 0, 0, "right")
 
             # works on objects in the queue until it is either empty or the deadline is just one second away
             while not self.jobQueue.empty():
@@ -711,4 +553,4 @@ class Agent:
             self.board = state["cells"]
 
         indexAction, choices = self.calcAction()
-        return indexAction, choices, de, self.sackG, checks, self.queueDepth, self.roundNumber, checkD
+        return indexAction, choices, de, self.isDeadend, executedJobs, len(self.logActionValue), self.roundNumber, checkD, self.safeZone, self.deadline

@@ -1,5 +1,11 @@
+#!/usr/bin/env python3
+# TODO imports prüfen
+# TODO Handbuch
+import time
 from datetime import datetime
 import json
+import dateutil.parser as dp
+import requests
 import websockets
 from Agent import Agent
 from AgentUtils import trashTalk
@@ -8,7 +14,7 @@ from Spe_edGUI import createGUI
 
 
 async def play(show=False, badManner=True):
-    """ Function to connect with websocket, create the Agent and
+    """ Function to connect with the websocket, create the Agent and
     calculate the estimated best action and sends it back to the websocket
 
     :param show: Boolean, whether the Game should be displayed in a GUI
@@ -23,30 +29,37 @@ async def play(show=False, badManner=True):
 
         state_json = await websocket.recv()
         state = json.loads(state_json)
-        spe_edAgent = Agent(state["cells"], state["width"], state["height"])
+
+        spe_edAgent = Agent(state["width"], state["height"])
         while True:
+            start = time.time()
+            timeAPI = requests.get("https://msoll.de/spe_ed_time")
+            serverTime = dp.parse(timeAPI.json()["time"]).timestamp() + timeAPI.json()["milliseconds"]/1000
+            ping = serverTime-start
+            print("Ping", ping)
             print("<", state)
-            print("Startzeit: " + str(datetime.utcnow()))
+            print("Startzeit: " + str(datetime.utcnow()))  # Debugging
 
             own = state["players"][str(state["you"])]
             if not state["running"] or not own["active"]:
                 if badManner:
                     trashTalk(own)
-                # pyplot.show()
                 break
 
-            indexAction, choices, de, sackG, checks, queueDepth, roundNumber, checkD = spe_edAgent.gameStep(state)
+            indexAction, choices, de, isDeadend, checks, queueDepth, roundNumber, checkD, safeZone, deadline = spe_edAgent.gameStep(state)
 
-            print("Endzeit: " + str(datetime.utcnow()))
-            print("\n", checks, "davon checkD:", checkD)
+            print("Endzeit: " + str(datetime.utcnow()))  # Debugging
+            print("\n", checks, "davon checkD:", checkD)  # Debugging
             action = choices_actions[indexAction]
             print(">", action)
+
+            seconds = deadline - start
 
             action_json = json.dumps({"action": action})
             await websocket.send(action_json)
 
-            if show:  # GUI, falls show == True
-                createGUI(state, roundNumber, action, choices, queueDepth - 1, de, sackG)
+            if show:
+                createGUI(state, roundNumber, action, choices, queueDepth - 1, de, isDeadend, safeZone, seconds)
 
             state_json = await websocket.recv()
             state = json.loads(state_json)

@@ -1,7 +1,6 @@
 import random
 
 
-# Gets the current direction its headed and the change (left or right). Returns the new direction
 def getNewDirection(direction, change):
     """Calculates a new direction based on your previous direction and the change
 
@@ -9,7 +8,7 @@ def getNewDirection(direction, change):
     :param change: left or right
     :return: new direction
     """
-    if direction == change: # (left + left | right + right) == down
+    if direction == change:  # (left + left | right + right) == down
         return "down"
     if change == "left":    # turn left from direction
         if direction == "up":
@@ -25,6 +24,7 @@ def getNewDirection(direction, change):
             return "right"
         else:
             return "up"
+
 
 def getNewPos(x, y, speed, direction):
     """ Takes the current x and y-position, as well as speed and direction
@@ -46,7 +46,6 @@ def getNewPos(x, y, speed, direction):
         return y, x + speed
 
 
-# Returns a Boolean-Value if the snake jumped over another one
 def overSnake(x, y, board, direction, speed):
     """ Checks whether the player is jumping over a bot or a taken field
 
@@ -67,9 +66,60 @@ def overSnake(x, y, board, direction, speed):
     return False
 
 
-# Return an answer according to the result(win or lose)
+def minimalEnemyDistance(state, x, y):
+    """
+    :param state: the state of this round
+    :param x: coordinate x
+    :param y: coordinate y
+    :return: Return the minimal manhattan-distance to the active enemies
+    """
+    dis = []
+
+    for enemy in range(1, len(state["players"]) + 1):
+        enemyObject = state["players"][str(enemy)]
+        if enemyObject["active"] and not state["you"] == enemy:
+            py = enemyObject["y"]
+            px = enemyObject["x"]
+
+            disXY = abs(px-x)+abs(py-y)
+            dis.append(disXY)
+
+    if not dis:
+        return 0
+    print("Minimale Distanz: ", min(dis))
+    return min(dis)
+
+
+def discardImpasse(px, py, dis, direction):
+    """
+    TODO @Marek
+    :param px:
+    :param py:
+    :param dis:
+    :param direction:
+    :return:
+    """
+    if direction == "up":
+        if dis > 0:
+            py += 1
+            dis -= 1
+    elif direction == "down":
+        if dis > 0:
+            py -= 1
+            dis -= 1
+    elif direction == "right":
+        if dis > 0:
+            px -= 1
+            dis -= 1
+    else:  # left
+        if dis > 0:
+            px += 1
+            dis -= 1
+    return px, py, dis
+
+
 def trashTalk(own):
-    """ Lines to print when a Game is won or not
+    """ Lines to print when a game is won or not
 
     :param own: own Player
     """
@@ -81,3 +131,18 @@ def trashTalk(own):
                            "Are these bots on easy?", "This was so easy, I feel bad winning"]
         answer = random.choice(valid_responses)
     print(answer)
+
+
+def getStepVector(direction):
+    """
+    :param direction: current direction of the snake
+    :return: Return the y and x change, when one step in the given direction is taken
+    """
+    if direction == "up":
+        return -1, 0
+    elif direction == "down":
+        return 1, 0
+    elif direction == "right":
+        return 0, 1
+    else:
+        return 0, -1

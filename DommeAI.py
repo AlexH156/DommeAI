@@ -6,62 +6,25 @@ import time
 from datetime import datetime
 import json
 from queue import Queue
+
+import numpy as np
 from matplotlib import pyplot, colors
 import dateutil.parser as dp
 import websockets
 
-# TODO alles optimieren->höhere Tiefe möglich
 # TODO alles aufhübschen (keine Prio)
 # TODO evtl: teilweise berechnete Ebenen mit Durchschnitt berechnen lassen (keine Prio)
-# TODO Evtl. im Endgame langsame Geschwindigkeit bevorzugen
-# TODO sd,cn,su vll schöner umschreiben
-# TODO Checkcounter prüfen
-# TODO Globalität prüfen (Notwendigkeit allgemein und erneute Aufzählungen)
 # TODO Evtl zweite Tiefe der Gegner mit einbinden (wenn bestimmte Nähe)
 
-# TODO Deadline in GUI (verfügbare Zeit)
-# TODO evtl Time API einbauen
-# TODO Queue nach Abbruch löschen/leeren
-# TODO outOfBorder Methode
-# TODO Queue beenden einheitlich in CD/CC entweder clear oder q=Queue()
 
-global ebene
+global logActionValue
 global q
-global myc
+global queueDepth
 
 global checkD  # Debugging
 
 
-# Return the action with the best value
-def calcAction(choices_actions):
-    choices = [0, 0, 0, 0, 0]
-    randy = []
 
-    # Actions, that reach the deepest depth will be preferred (+10000)
-    print(ebene)
-    for i in range(0, 5):
-        if myc > 0:
-            if ebene[myc - 1][i] != 0:
-                ebene[0][i] += 10000
-        else:
-            choices = ebene[0]
-
-    # Add up the variable ebene
-    for i in range(0, myc):
-        for j in range(0, 5):
-            choices[j] += ebene[i][j]
-
-    # Choose the best action, when 2 or more actions have the same value, choose random from them
-    print(choices)
-    best = max(choices)
-    action = choices_actions[choices.index(best)]
-    for i in range(len(choices)):
-        if choices[i] == best:
-            randy.append(choices_actions[i])
-    if len(randy) > 1:
-        action = random.choice(randy)
-
-    return action, choices
 
 
 # Gets the current directions its headed and the change (left or right). Returns the new direction
@@ -102,11 +65,11 @@ def checkFront(x, y, direction, board, speed, width, height, wert, depth, counte
     newaction = action
     init = action is None
     coordIgnore = checkCounter < 3  # True, wenn Koordinaten nicht geprüft werden müssen
-    isJump = counter % 6 == 0
+    isJumping = counter % 6 == 0
     newcoord = coord[:]
 
     # Vorgehen: Bei Sprung prüfe erst gemeinsamen Schwanz, dann jeweils Kopf
-    if isJump:
+    if isJumping:
         newbodyY, newbodyX = getnewpos(x, y, 1, direction)
         if height > newbodyY >= 0 and width > newbodyX >= 0 and board[newbodyY][newbodyX] == 0 and (
                 coordIgnore or [newbodyY, newbodyX] not in coord):
@@ -121,10 +84,10 @@ def checkFront(x, y, direction, board, speed, width, height, wert, depth, counte
                     newcoord0.append([newheadY, newheadX])
                 if init:
                     newaction = 1
-                ebene[depth][newaction] += wert
-                if sackG and ebene[0][newaction] == 1 and overSnake(x, y, board, direction, speed - 1) and not deadend(
+                logActionValue[depth][newaction] += wert
+                if sackG and logActionValue[0][newaction] == 1 and overSnake(x, y, board, direction, speed - 1) and not deadend(
                         newheadX, newheadY, board, direction, width, height) < 14:
-                    ebene[0][newaction] = 500
+                    logActionValue[0][newaction] = 500
                 q.put((checkchoices, [newheadX, newheadY, direction, board, speed - 1, width, height, wert / 2,
                                       depth + 1, counter + 1, deadline, newaction, newcoord0, distance, 0, checkCounter,
                                       sackG]))
@@ -137,10 +100,10 @@ def checkFront(x, y, direction, board, speed, width, height, wert, depth, counte
                     newcoord1.append([newheadY, newheadX])
                 if init:
                     newaction = 2
-                ebene[depth][newaction] += wert
-                if sackG and ebene[0][newaction] == 1 and overSnake(x, y, board, direction, speed) and not deadend(
+                logActionValue[depth][newaction] += wert
+                if sackG and logActionValue[0][newaction] == 1 and overSnake(x, y, board, direction, speed) and not deadend(
                         newheadX, newheadY, board, direction, width, height) < 14:
-                    ebene[0][newaction] = 500
+                    logActionValue[0][newaction] = 500
                 q.put((checkchoices, [newheadX, newheadY, direction, board, speed, width, height, wert / 2,
                                       depth + 1, counter + 1, deadline, newaction, newcoord1, distance, 0, checkCounter,
                                       sackG]))
@@ -152,10 +115,10 @@ def checkFront(x, y, direction, board, speed, width, height, wert, depth, counte
                 newcoord2.append([newheadY, newheadX])
                 if init:
                     newaction = 0
-                ebene[depth][newaction] += wert
-                if sackG and ebene[0][newaction] == 1 and overSnake(x, y, board, direction, speed + 1) and not deadend(
+                logActionValue[depth][newaction] += wert
+                if sackG and logActionValue[0][newaction] == 1 and overSnake(x, y, board, direction, speed + 1) and not deadend(
                         newheadX, newheadY, board, direction, width, height) < 14:
-                    ebene[0][newaction] = 500
+                    logActionValue[0][newaction] = 500
                 q.put((checkchoices, [newheadX, newheadY, direction, board, speed + 1, width, height, wert / 2,
                                       depth + 1, counter + 1, deadline, newaction, newcoord2, distance, 0, checkCounter,
                                       sackG]))
@@ -178,7 +141,7 @@ def checkFront(x, y, direction, board, speed, width, height, wert, depth, counte
                 if not hit:
                     if init:
                         newaction = 1
-                    ebene[depth][newaction] += wert
+                    logActionValue[depth][newaction] += wert
                     q.put((checkchoices, [newheadX, newheadY, direction, board, speed - 1, width, height, wert / 2,
                                           depth + 1, counter + 1, deadline, newaction, newcoord0, distance, 0,
                                           checkCounter, sackG]))
@@ -193,7 +156,7 @@ def checkFront(x, y, direction, board, speed, width, height, wert, depth, counte
                 newcoord1.append([newheadY, newheadX])
                 if init:
                     newaction = 2
-                ebene[depth][newaction] += wert
+                logActionValue[depth][newaction] += wert
                 q.put((checkchoices, [newheadX, newheadY, direction, board, speed, width, height, wert / 2,
                                       depth + 1, counter + 1, deadline, newaction, newcoord1, distance, 0, checkCounter,
                                       sackG]))
@@ -205,7 +168,7 @@ def checkFront(x, y, direction, board, speed, width, height, wert, depth, counte
                     newcoord2.append([newheadY, newheadX])
                     if init:
                         newaction = 0
-                    ebene[depth][newaction] += wert
+                    logActionValue[depth][newaction] += wert
                     q.put((checkchoices, [newheadX, newheadY, direction, board, speed + 1, width, height, wert / 2,
                                           depth + 1, counter + 1, deadline, newaction, newcoord2, distance, 0,
                                           checkCounter, sackG]))
@@ -219,7 +182,7 @@ def checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, 
     # checkCounter: +1 wenn rechts oder links, +0 wenn vorne
     coordIgnore = checkCounter < 2  # True, wenn Koordinaten nicht geprüft werden müssen
     direction = getnewdirection(direction, change)
-    isJump = counter % 6 == 0
+    isJumping = counter % 6 == 0
     newcoord = coord[:]
 
     newheadY, newheadX = getnewpos(x, y, speed, direction)
@@ -229,7 +192,7 @@ def checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, 
         isHit = False
         newcoord.append([newheadY, newheadX])
         for i in range(1, speed):
-            if isJump:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
+            if isJumping:  # Prüfe ob sechste runde und dann prüfe nicht Lücke
                 newbodyY, newbodyX = getnewpos(x, y, 1, direction)
                 if board[newbodyY][newbodyX] != 0 or (not coordIgnore and [newbodyY, newbodyX] in coord):
                     isHit = True
@@ -242,10 +205,10 @@ def checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, 
                 break
             newcoord.append([newbodyY, newbodyX])
         if not isHit:
-            ebene[depth][action] += wert
-            if isJump and ebene[0][action] == 1 and sackG and overSnake(x, y, board, direction, speed) and not deadend(
+            logActionValue[depth][action] += wert
+            if isJumping and logActionValue[0][action] == 1 and sackG and overSnake(x, y, board, direction, speed) and not deadend(
                     newheadX, newheadY, board, direction, width, height) < 14:
-                ebene[0][action] = 500
+                logActionValue[0][action] = 500
             if change == "left":
                 if not collCounter > 0:
                     checkCounter += 1
@@ -260,57 +223,73 @@ def checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, 
 
 
 # Return a board that has every possible action from active enemies registered
-def gegnerboard(state, isJump):
-    board = [row[:] for row in state["cells"]]
+def constructEnemyBoard(state, isJumping):
+    enemyBoard = state["cells"]
     # Gehe durch alle Spieler die noch aktiv sind
-    for p in range(1, int(len(state["players"]) + 1)):
-        if state["players"][str(p)]["active"] and not state["you"] == p:
+    for enemy in range(1, len(state["players"]) + 1):
+        enemyObject = state["players"][str(enemy)]
+        if enemyObject["active"] and not state["you"] == enemy:
             # Prüfe erst ob bei Verlangsamung überleben würde, trage ein, dann CN prüfen und eintragen,
             # als letztes Beschleinigung prüfen und eintragen (Beachte nicht Sonderfall der 6.ten Runde)
-            pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                     state["players"][str(p)]["speed"] - 1, state["players"][str(p)]["direction"])
-            # Prüfe ob er das Spielfeld verlassen würde, wenn verlangsamt
-            if state["height"] > pnewy >= 0 and state["width"] > pnewx >= 0:
-                board[pnewy][pnewx] = 7
-                for i in range(1, state["players"][str(p)]["speed"] - 1):
-                    if isJump:
-                        pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                                 1, state["players"][str(p)]["direction"])
-                        board[pnewy][pnewx] = 7
-                        break
-                    pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                             i, state["players"][str(p)]["direction"])
-                    board[pnewy][pnewx] = 7
-                pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                         state["players"][str(p)]["speed"], state["players"][str(p)]["direction"])
-                # Prüfe ob er das Spielfeld verlassen würde, wenn nichts macht
-                if state["height"] > pnewy >= 0 and state["width"] > pnewx >= 0:
-                    board[pnewy][pnewx] = 7
-                    pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                             state["players"][str(p)]["speed"] + 1,
-                                             state["players"][str(p)]["direction"])
-                    # Prüfe ob er das Spielfeld verlassen würde, wenn beschleunigt
-                    if state["height"] > pnewy >= 0 and state["width"] > pnewx >= 0:
-                        board[pnewy][pnewx] = 7
+            newHeadPosList = []
+            currDirection = enemyObject["direction"]
+            speedNotTen = 1
+            if enemyObject["speed"] % 10 == 0:
+                newSpeed = 10
+                speedNotTen = 0
+            else:
+                newSpeed = enemyObject["speed"] + 1
 
-            # Prüfe ob bei links/rechts außerhalb des Spielfeldes, sonst trage ein
-            for newd in ["left", "right"]:
-                newdirection = getnewdirection(state["players"][str(p)]["direction"], newd)
-                pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                         state["players"][str(p)]["speed"], newdirection)
-                # Prüfe ob er das Spielfeld verlassen würde, wenn links/rechts
-                if state["height"] > pnewy >= 0 and state["width"] > pnewx >= 0:
-                    board[pnewy][pnewx] = 7
-                    for i in range(1, state["players"][str(p)]["speed"]):
-                        if isJump:
-                            pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                                     1, newdirection)
-                            board[pnewy][pnewx] = 7
-                            break
-                        pnewy, pnewx = getnewpos(state["players"][str(p)]["x"], state["players"][str(p)]["y"],
-                                                 i, newdirection)
-                        board[pnewy][pnewx] = 7
-    return board
+            newHeadPosList.append(getnewpos(enemyObject["x"], enemyObject["y"], newSpeed, currDirection))
+
+            newDirection = getnewdirection(currDirection, "left")
+            newHeadPosList.append(getnewpos(enemyObject["x"], enemyObject["y"], enemyObject["speed"], newDirection))
+
+            newDirection = getnewdirection(currDirection, "right")
+            newHeadPosList.append(getnewpos(enemyObject["x"], enemyObject["y"], enemyObject["speed"], newDirection))
+
+            if isJumping:
+                pathList = []
+                pathList.append(np.zeros(newSpeed, dtype=np.int32))
+                pathList[0][0] = 7
+                pathList[0][-1] = 7
+                pathList[0][-2] = 7
+
+                pathList.append(np.zeros(newSpeed - 1 * speedNotTen, dtype=np.int32))
+                pathList[1][0] = 7
+                pathList[1][-1] = 7
+
+                if newSpeed >= 3:
+                    pathList[0][-3] = 7
+            else:
+                pathList = []
+                pathList.append(np.full((newSpeed), 7, dtype=np.int32))
+                pathList.append(np.full((newSpeed - 1 * speedNotTen), 7, dtype=np.int32))
+
+            pathNum = 0
+            for newHeadPos in newHeadPosList:
+                numberSteps = 0
+                stepVector = [newHeadPos[0] - enemyObject["y"], newHeadPos[1] - enemyObject["x"]]
+
+                if stepVector[1] == 0:
+                    stepVector[0] = stepVector[0] / abs(stepVector[0])
+                    boundHelp = (stepVector[0] + 1) * 0.5
+                    numberSteps = min(abs(boundHelp * (state["height"] - 1) - enemyObject["y"]),
+                                      newSpeed - 1 * pathNum * speedNotTen)
+                else:
+                    stepVector[1] = stepVector[1] / abs(stepVector[1])
+                    boundHelp = (stepVector[1] + 1) * 0.5
+                    numberSteps = min(abs(boundHelp * (state["width"] - 1) - enemyObject["x"]),
+                                      newSpeed - 1 * pathNum * speedNotTen)
+
+                chosenPath = pathList[pathNum]
+                numberSteps = int(numberSteps)
+                for step in range(1, numberSteps + 1):
+                    stepX = enemyObject["x"] + stepVector[1] * step
+                    stepY = enemyObject["y"] + stepVector[0] * step
+                    enemyBoard[int(stepY)][int(stepX)] = max(chosenPath[step - 1], enemyBoard[int(stepY)][int(stepX)])
+                pathNum = 1
+    return enemyBoard
 
 
 # Return the count of free fields in the given direction
@@ -484,9 +463,9 @@ def anzeige(state, counter, action, choices, depth, LR, de, deDir, sackG):
 # TODO In diesem Szenario leicht anderes Ergebnis
 def checkdistance(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord,
                   distance, collCounter, checkCounter, sackG):
-    global ebene
+    global logActionValue
     global q
-    global myc
+    global queueDepth
 
     global checkD
     checkD += 1  # Debugging
@@ -522,12 +501,12 @@ def checkdistance(x, y, direction, board, speed, width, height, wert, depth, cou
 
         newaction = action
         init = action is None
-        isJump = counter % 6 == 0
+        isJumping = counter % 6 == 0
 
         newcoord = coord[:]
 
         # ist es evtl im nächsten Schritt möglich? -> CD
-        if isJump:
+        if isJumping:
             newy, newx = getnewpos(x, y, 1, direction)
             newcoord.append([newy, newx])
 
@@ -621,8 +600,8 @@ def checkdistance(x, y, direction, board, speed, width, height, wert, depth, cou
 
 def checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action, coord, distance,
                  collCounter, checkCounter, sackG):
-    global ebene
-    global myc
+    global logActionValue
+    global queueDepth
     global q
 
     # Wenn weniger als eine Sekunde bis zur Deadline verbleibt, bearbeite die Queue nicht weiter
@@ -649,105 +628,6 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
                      collCounter, checkCounter, "right", 0, sackG)
 
 
-async def play(show=False):
-    global ebene
-    global q
-    global myc
 
-    global checkD  # Debugging
-
-    filename = 'apikey.txt'
-    url = "wss://msoll.de/spe_ed"
-    key = open(filename, "r").read().strip()
-    async with websockets.connect(f"{url}?key={key}") as websocket:
-        print("Waiting for initial state...", flush=True)
-        counter = 0  # The round-count to know, when the jump is
-        choices_actions = ["speed_up", "slow_down", "change_nothing", "turn_left", "turn_right"]
-
-        while True:
-            state_json = await websocket.recv()
-            state = json.loads(state_json)
-            print("<", state)
-            print("Startzeit: " + str(datetime.utcnow()))
-            own = state["players"][str(state["you"])]
-            if not state["running"] or not own["active"]:
-                if not own["active"]:
-                    erfolg = "verloren"
-                else:
-                    valid_responses = ["Winner Winner, Chicken Dinner", "git gud", "Too weak, too slow",
-                                       "ez game, ez life", "ez pz lemon squeezy", "ez", "rekt", "l2p", "noobs",
-                                       "too ez"]
-                    erfolg = random.choice(valid_responses)
-                print(erfolg)
-                pyplot.show()
-                break
-
-            # Initialisierung
-            myc, depth = 0, 0
-            counter += 1
-            isJump = counter % 6 == 0
-            ebene = [[0, 0, 0, 0, 0]]
-            q = Queue()
-            deadline = dp.parse(state["deadline"]).timestamp()
-            checks, checkD = 0, 0  # Debugging
-
-            # Erstelle ein Board mit allen möglichen Zügen der aktiven Gegner, um Überschneidungen im nächsten Schritt
-            # zu verhindern. Berücksichtigt alle Züge, bei denen der Gegner nicht außerhalb des Feldes landet
-            board = gegnerboard(state, isJump)
-
-            LR = maxLR(own["x"], own["y"], board, own["direction"], state["width"], state["height"])
-            deDir = deadendDir(own["x"], own["y"], board, own["direction"], state["width"], state["height"])
-            de = deadend(own["x"], own["y"], board, own["direction"], state["width"], state["height"])
-            sackG = de < 14
-
-            # print("distanz nach vorne:", vorne)
-            # print("rechts:", rechts)
-            # print("links:", links)
-
-            # Catches the special case, when the possible moves of an enemy blocks our snake. We will then proceed
-            # with the basic board, that doesn´t have the enemies' moves included
-            for whichBoard in [board, state["cells"]]:
-                # Prüfe Abstand nach Vorne, Links und Rechts
-                vorne = distanz(own["x"], own["y"], whichBoard, own["direction"], state["width"], state["height"])
-                links = distanz(own["x"], own["y"], whichBoard, getnewdirection(own["direction"], "left"),
-                                state["width"], state["height"])
-                rechts = distanz(own["x"], own["y"], whichBoard, getnewdirection(own["direction"], "right"),
-                                 state["width"], state["height"])
-
-                if vorne > own["speed"]:
-                    checkWhat = checkdistance
-                else:
-                    checkWhat = checkFront
-
-                checkWhat(own["x"], own["y"], own["direction"], whichBoard, own["speed"],
-                          state["width"], state["height"], 1, depth, counter, deadline, None, [], vorne, 0, 0, sackG)
-
-                # check-left
-                checkLeftorRight(own["x"], own["y"], own["direction"], whichBoard, own["speed"], state["width"],
-                                 state["height"], 1, depth, counter, deadline, 3, [], 0, 0, "left", links, sackG)
-
-                # check-right
-                checkLeftorRight(own["x"], own["y"], own["direction"], whichBoard, own["speed"], state["width"],
-                                 state["height"], 1, depth, counter, deadline, 4, [], 0, 0, "right", rechts, sackG)
-
-                # Bearbeite solange Objekte aus der Queue bis diese leer ist oder 1 Sekunde bis zur Deadline verbleibt
-                while not q.empty():
-                    checks += 1  # Debugging
-                    f, args = q.get()
-                    f(*args)
-
-                if myc > 0:
-                    break
-
-            action, choices = calcAction(choices_actions)
-
-            print("Endzeit: " + str(datetime.utcnow()))
-            print(">", action)
-            print("\n", checks, "davon checkD:", checkD)
-            action_json = json.dumps({"action": action})
-
-            if show:  # GUI, falls show == True
-                anzeige(state, counter, action, choices, myc - 1, LR, de, deDir, sackG)
-            await websocket.send(action_json)
 
 asyncio.get_event_loop().run_until_complete(play(show=True))

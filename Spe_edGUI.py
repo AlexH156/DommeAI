@@ -1,7 +1,19 @@
 from matplotlib import pyplot, colors
 
 
-def createGUI(state, counter, action, choices, depth, de, sackG):
+def createGUI(state, counter, action, choices, depth, de, sackG, safeZone, timeToDeadline):
+    """
+    TODO
+    :param safeZone:
+    :param timeToDeadline:
+    :param state:
+    :param counter:
+    :param action:
+    :param choices:
+    :param depth:
+    :param de:
+    :param sackG:
+    """
     # information about the current state of the player
     youx = str(state["players"][str(state["you"])]["x"])
     youy = str(state["players"][str(state["you"])]["y"])
@@ -14,7 +26,7 @@ def createGUI(state, counter, action, choices, depth, de, sackG):
 
     board = state["cells"]  # board as a 2D matrix
     w = max(state["width"] / 10, 5.8)  # width of the GUI (minimum value for the text)
-    h = (state["height"] / 10) + 0.5  # height of the GUI (addition for the text)
+    h = max(state["height"] / 10, 6)  # height of the GUI (addition for the text)
 
     # number of players
     playerCount = int(len(state["players"]))

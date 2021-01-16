@@ -9,14 +9,16 @@ from threading import Thread
 from collections import deque
 import matplotlib.pylab as plt
 # from matplotlib import pyplot
+import requests
 from matplotlib import pyplot, use, colors
 from scipy import sparse
 import dateutil.parser as dp
+import numpy as np
 
 global q
-global ebene
+global logActionValue
 global notbremse
-global myc
+global queueDepth
 
 def getnewdirection(dir, change):  # bestimme neue Richtung nach Wechsel
     if dir == change:
@@ -46,6 +48,33 @@ def getnewpos(x, y, s, dir):  # bestimme neue Position
         return [y, x - s]
     elif dir == "right":
         return [y, x + s]
+
+def getDistance(x, y, direction, board, width, height):
+    """Gives the distance of free fields in a given directory from a given point
+
+    :param x: coordinate x
+    :param y: coordinate y
+    :param direction: the given direction
+    :return: Return the count of free fields in the given direction
+    """
+    dis = 0
+    if direction == "up":
+        while y > 0 and board[y - 1][x] == 0:
+            y -= 1
+            dis += 1
+    elif direction == "down":
+        while y < height - 1 and board[y + 1][x] == 0:
+            y += 1
+            dis += 1
+    elif direction == "right":
+        while x < width - 1 and board[y][x + 1] == 0:
+            x += 1
+            dis += 1
+    else:  # left
+        while x > 0 and board[y][x - 1] == 0:
+            x -= 1
+            dis += 1
+    return dis, x, y
 
 
 class Direction(Enum):
@@ -77,17 +106,17 @@ def checkLeft(x,y,direction, board, speed, width, height, wert, depth, counter, 
                 break
             newcoord3.append([newyy, newxx])
         if not hit:
-            ebene[depth][action] += wert
+            logActionValue[depth][action] += wert
             q.put((checkchoices, [newx, newy, newdirection, board, speed, width, height, wert / 2,
                                   depth + 1, counter + 1, deadline, action, newcoord3, min(collCounter - 1, - 1),
                                   checkCounter - 1]))
 
 def checkchoices(x, y, direction, board, speed, width, height, wert, depth, counter, deadline, action):
 
-    global ebene
+    global logActionValue
     global q
     global notbremse
-    global myc
+    global queueDepth
 
     myc = depth
 
@@ -257,7 +286,7 @@ def checkchoices(x, y, direction, board, speed, width, height, wert, depth, coun
 def testmethode(wert, counter, deadline, action):
     #print(counter)
 
-    global ebene
+    global logActionValue
     if not len(ebene) > counter:
         ebene.append([0,0,0,0,0])
     ebene[counter][action] += wert
@@ -471,27 +500,38 @@ def main():
     width = state["width"]
     height = state["height"]
     speed = own_player["speed"]
-    isJump = False
+    isJump = True
     wert = 0.5
     depth = 1
     deadline = 4
-    action = 3
+    action = None
     collCounter = 0
     checkCounter = 0
-    global ebene
+    global logActionValue
     ebene = [[0,0,0,0,0],[0,0,0,0,0]]
     global q
     q = Queue()
-    change = "left"
+    change = "L"
+    abfrage = True
+    gamma = 0.5
+    depth = 7
+    dis= 40
+    s = 3
+    skip = dis > s
+    tiu = requests.get("https://msoll.de/spe_ed_time")
+            #,[15,54],[16,54],[17,54]
+    test = [[12, 54], [13, 54], [14, 14]]
+    test2= [[13,37]]
+    stepVector = (-1,0)
+    neutest = -1
 
-    test = [[12,54],[13,54],[14,14]]        #,[15,54],[16,54],[17,54]
-    for i in range(1,100000000):
-        if change == "left":
-            x = 3
+    for i in range(1,100):
+        start = time.time()
+        timeAPI = requests.get("https://msoll.de/spe_ed_time")
+        serverTime = dp.parse(timeAPI.json()["time"]).timestamp() + timeAPI.json()["milliseconds"] / 1000
+        ping = serverTime - start
 
-    print(4.050813913345337-4.323548078536987)
-    # 0.3964817523956299
-    # print(state["cells"])
+    # 0.22652125358581543
     # print(neu)
     # 100k kopien: deepcopy116 sek, map und row 1.1 sek,
     # print(sum)
