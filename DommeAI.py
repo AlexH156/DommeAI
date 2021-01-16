@@ -210,11 +210,11 @@ def checkLeftorRight(x, y, direction, board, speed, width, height, wert, depth, 
                     newheadX, newheadY, board, direction, width, height) < 14:
                 logActionValue[0][action] = 500
             if change == "left":
-                if not collCounter > 0:
+                if collCounter <= 0:
                     checkCounter += 1
                 collCounter = min(collCounter - 1, - 1)
             else:
-                if not collCounter < 0:
+                if collCounter >= 0:
                     checkCounter += 1
                 collCounter = max(collCounter + 1, 1)
             q.put((checkdistance, [newheadX, newheadY, direction, board, speed, width, height, wert / 2, depth + 1,
