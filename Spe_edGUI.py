@@ -48,15 +48,16 @@ def createGUI(state, counter, action, choices, depth, de, sackG, safeZone, timeT
         playerColors = gameColors[:(playerCount + 2)]
         colormap = colors.ListedColormap(playerColors)
         pyplot.imshow(board, cmap=colormap)  # vizualization of the board
-        pyplot.title("DommeAI: " + gameColors[(state["you"] + 1)] + "\n" + "Round: " + str(counter - 1))  # header
+        pyplot.title("DommeAI: " + gameColors[(state["you"] + 1)] + "\n" + "Seconds: " + str(round(timeToDeadline, 2)) +
+                     " | Round: " + str(counter - 1))  # header
 
         # don't label the axis
         pyplot.xticks([])
         pyplot.yticks([])
 
         pyplot.xlabel("x: " + youx + " y: " + youy + " | dir: " + youdir + " | speed: " + youspeed +
-                      " | De: " + str(de) +
-                      "\n" + str(choices) + " | SG: " + str(sackG) +
+                      " | De: " + str(de) + " | SZ: " + str(safeZone) +
+                      "\n" + str(choices) + " | DE: " + str(sackG) +
                       "\n" + "next move: " + str(action) + "  |  depth: " + str(depth) +
                       " | Jump in T - " + str(5 - ((counter - 2) % 6)))
 

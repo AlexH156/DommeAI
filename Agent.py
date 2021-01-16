@@ -45,6 +45,10 @@ class Agent:
         self.board = board
         self.sackG = False
         self.counter = 0
+        self.safeZoneBias = 0.1  # Bias pro speed_down and contra speed_up if in a safeZone
+        self.deadendLimit = 14  # Limit, when a situation is considered a deadend
+        self.safeZoneLimit = 35  # Limit, when a situation could be considered a safeZone
+        self.safeZoneDistance = 20  # Limit, when a possible safeZone is called
 
     def calcAction(self):
         """
@@ -259,8 +263,8 @@ class Agent:
                 collCounter = max(collCounter + 1, 1)
 
             # TODO Prüfen, ob effizienter
-            # if distance == 0 and myc < 6 and coordIgnore:
-            #     distance = self.getDistance(newheadX, newheadY, self.board, direction, self.width, self.height) + speed
+            # if distance == 0 and coordIgnore:
+            #   distance = self.getDistance(newheadX, newheadY, self.board, direction, self.width, self.height)[0] + speed
 
             self.jobQueue.put((self.checkchoices, [newheadX, newheadY, direction, speed, depth + 1,
                                                    action, newcoord, distance - speed, collCounter, checkCounter]))
@@ -400,54 +404,49 @@ class Agent:
         # Check-Right
         self.checkLeftorRight(x, y, direction, speed, depth, action, coord, 0, collCounter, checkCounter, "right")
 
-    # TODO evtl durch 2 aufrufe von getDistance ersetzen
+    def freeLR(self, x, y, direction):
+        """
+        checks, whether the fields left and right of a specific coordinate and direction are blocked
+        :param x: x coordinate
+        :param y: y coordinate
+        :param direction: direction of player
+        :return: True if at least one field to the side of the coordinates and direction is empty, False otherwise
+        """
+        freeLeft = False
+        ly, lx = getNewPos(x, y, 1, getNewDirection(direction, "left"))
+        if self.isInBound(lx, ly) and self.board[ly][lx] == 0:
+            freeLeft = True
+
+        freeRight = False
+        ry, rx = getNewPos(x, y, 1, getNewDirection(direction, "right"))
+        if self.isInBound(rx, ry) and self.board[ry][rx] == 0:
+            freeLeft = True
+
+        return freeLeft or freeRight
+
     # computes the maximum distance to the left and right of a direction and coordinates
     def maxLR(self, x, y, direction):
-        px = x
-        py = y
+        """
+        computes the maximum distance to the left or right of specific coordinates and a specific direction
+        if the last coordinates in a direction does not allow for further moves,
+        it continues with the coordinates and distance to the coordinates before that
+        :param x: x coordinates
+        :param y: y coordinates
+        :param direction: direction of player
+        :return: maximum distance to the left/right of specific coordinates and specific direction
+        """
+        distances = []
+        for LoR in ["left", "right"]:
 
-        # computes the direction to the rigth
-        ld = 0
-        if direction == "right":  # checks up  (left of right)
-            while py > 0 and self.board[py - 1][px] == 0:
-                py -= 1
-                ld += 1
-        elif direction == "left":  # checks down
-            while py < self.height - 1 and self.board[py + 1][px] == 0:
-                py += 1
-                ld += 1
-        elif direction == "down":  # checks right
-            while px < self.width - 1 and self.board[py][px + 1] == 0:
-                px += 1
-                ld += 1
-        else:  # checks left
-            while px > 0 and self.board[py][px - 1] == 0:
-                px -= 1
-                ld += 1
+            pDirection = getNewDirection(direction, LoR)
+            dis, px, py = self.getDistance(x, y, pDirection)
 
-        px = x
-        py = y
-
-        # computes the direction to the left
-        rd = 0
-        if direction == "left":  # checks up (right of left)
-            while py > 0 and self.board[py - 1][px] == 0:
-                py -= 1
-                rd += 1
-        elif direction == "right":  # checks down
-            while py < self.height - 1 and self.board[py + 1][px] == 0:
-                py += 1
-                rd += 1
-        elif direction == "up":  # checks right
-            while px < self.width - 1 and self.board[py][px + 1] == 0:
-                px += 1
-                rd += 1
-        else:  # checks left
-            while px > 0 and self.board[py][px - 1] == 0:
-                px -= 1
-                rd += 1
-
-        return max(ld, rd)
+            isFreeL = self.freeLR(px, py, pDirection)
+            while isFreeL == 0 and dis > 0:  # if maxLR == 0: check one step back
+                px, py, dis = discardImpasse(px, py, dis, pDirection)
+                isFreeL = self.freeLR(px, py, pDirection)
+            distances.append(dis)
+        return max(distances)
 
     # computes the maximum possible number of fields in one direction including one turn at the end
     def checkDeadend(self, x, y, direction, limitIndex):
@@ -484,7 +483,7 @@ class Agent:
         if not len(self.logActionValue) > depth:
             self.logActionValue.append([0, 0, 0, 0, 0])
             self.value = self.value * self.gamma
-            self.counter = self.roundNumber + depth  # TODO prüfen, ob passt
+            self.counter = self.roundNumber + depth
 
     def checkDeadline(self):
         """
@@ -499,6 +498,11 @@ class Agent:
         return False
 
     def gameStep(self, state):
+        """
+        # TODO
+        :param state:
+        :return:
+        """
         # Initialization
         depth = 0
         self.roundNumber += 1
@@ -513,12 +517,18 @@ class Agent:
         # also includes moves leading to a potential death of an enemy
         self.board = self.constructEnemyBoard(state, isJumping)
 
-        # Debugging:
-        # LR = maxLR(own["x"], own["y"], board, own["direction"])
-        # deDir = deadendDir(own["x"], own["y"], board, own["direction"])
         own = state["players"][str(state["you"])]
-        de = self.checkDeadend(own["x"], own["y"], own["direction"])
-        self.sackG = de < 14    # TODO testen if Wert > 40 and Round > 300 and Distanz zu Gegnern > x: SD + 100, SU - 100
+
+        # Debugging:
+        LR = self.maxLR(own["x"], own["y"], own["direction"])
+        print("LR: ", LR)
+
+        de = self.checkDeadend(own["x"], own["y"], own["direction"], 0)
+        print("Deadend: ", de)
+        self.isDeadend = de < self.deadendLimit
+        # TODO testen if Wert > 35 and Distanz zu Gegnern > x: SD + 100, SU - 100
+        self.safeZone = de > self.safeZoneLimit and minimalEnemyDistance(state, own["x"],
+                                                                         own["y"]) > self.safeZoneDistance
 
         # Catches the special case, when the possible moves of an enemy blocks our snake. We will then proceed
         # with the basic board, that doesn´t have the enemies' possible moves included
