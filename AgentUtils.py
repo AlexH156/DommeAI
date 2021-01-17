@@ -93,12 +93,17 @@ def getMinimalEnemyDistance(state, x, y):
 
 def discardImpasse(px, py, dis, direction):
     """
-    TODO @Marek
-    :param px:
-    :param py:
-    :param dis:
-    :param direction:
-    :return:
+    used in the calculations of checkDeadend() and maxLR()
+    receives the current coordinates, on which the calculations were being based on and returns new coordinates,
+    if the previous coordinates did not fulfill the requirements (free space to the left/right), as well as
+    the new distance (distance-1)
+    returns the coordinates, which are one step closer to the player
+
+    :param px: x coordinate the calculations were beinf based on
+    :param py: y coordinate the calculations were beinf based on
+    :param dis: previous calculated distance
+    :param direction: direction the calculations are being based on
+    :return: new coordinates and (distance - 1)
     """
     if direction == "up":
         if dis > 0:

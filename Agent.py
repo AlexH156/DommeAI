@@ -542,7 +542,7 @@ class Agent:
 
             # check-sd/cn/su
             self.checkFront(own["x"], own["y"], own["direction"], own["speed"], depth,
-                            None, [], straightDistance, 0, 0)
+                            None, [], straightDistance, 0)
 
             # check-left
             self.checkLeftorRight(own["x"], own["y"], own["direction"], own["speed"], depth,

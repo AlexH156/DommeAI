@@ -1,3 +1,5 @@
+![Logo DommeAI](https://i.ibb.co/vL7D45R/DommeV3.png)
+
 # InformatiCup-2021 Handbuch
 Dieses Handbuch beschreibt die Installation, sowie die Benutzung der Software inklusive der Erweiterungsparameter show und badManner.  
 ## Setup

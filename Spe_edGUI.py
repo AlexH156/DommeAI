@@ -57,8 +57,8 @@ def createGUI(state, counter, action, choices, depth, de, isDeadend, isSafeZone,
         pyplot.yticks([])
 
         pyplot.xlabel("x: " + youx + " y: " + youy + " | dir: " + youdir + " | speed: " + youspeed +
-                      " | De: " + str(de) + " | SZ: " + str(safeZone) +
-                      "\n" + str(choices) + " | DE: " + str(sackG) +
+                      " | De: " + str(de) + " | SZ: " + str(isSafeZone) +
+                      "\n" + str(choices) + " | DE: " + str(isDeadend) +
                       "\n" + "next move: " + str(action) + "  |  depth: " + str(depth) +
                       " | Jump in T - " + str(5 - ((counter - 2) % 6)))
 
