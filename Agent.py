@@ -46,6 +46,7 @@ class Agent:
         self.isDeadend = False
         self.isSafeZone = False
         self.counter = 0
+        self.deadendBias = 500
         self.safeZoneBias = 0.1  # Bias pro speed_down and contra speed_up if in a safeZone
         self.deadendLimit = 14  # Limit, when a situation is considered a deadend
         self.safeZoneLimit = 35  # Limit, when a situation could be considered a safeZone
