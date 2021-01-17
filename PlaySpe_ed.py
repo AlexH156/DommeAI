@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-# TODO imports prüfen
+# TODO imports prüfen (numpy scipy)
 # TODO Handbuch
+# TODO Dateispeicherort prüfen
 import time
 from datetime import datetime
 import json
+from os import mkdir
+
 import dateutil.parser as dp
 import requests
 import websockets
@@ -29,6 +32,9 @@ async def play(show=False, badManner=True):
 
         state_json = await websocket.recv()
         state = json.loads(state_json)
+        if show:
+            gameName = state["deadline"].replace(":","-")
+            mkdir(gameName)
 
         spe_edAgent = Agent(state["width"], state["height"])
         while True:
@@ -59,7 +65,7 @@ async def play(show=False, badManner=True):
             await websocket.send(action_json)
 
             if show:
-                createGUI(state, roundNumber, action, choices, queueDepth - 1, de, isDeadend, safeZone, seconds)
+                createGUI(state, roundNumber, action, choices, queueDepth - 1, de, isDeadend, safeZone, seconds, gameName)
 
             state_json = await websocket.recv()
             state = json.loads(state_json)

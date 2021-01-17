@@ -66,7 +66,7 @@ def overSnake(x, y, board, direction, speed):
     return False
 
 
-def minimalEnemyDistance(state, x, y):
+def getMinimalEnemyDistance(state, x, y):
     """
     :param state: the state of this round
     :param x: coordinate x

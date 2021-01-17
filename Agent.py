@@ -44,7 +44,7 @@ class Agent:
         self.deadline = 0
         self.board = []
         self.isDeadend = False
-        self.safeZone = False
+        self.isSafeZone = False
         self.counter = 0
         self.safeZoneBias = 0.1  # Bias pro speed_down and contra speed_up if in a safeZone
         self.deadendLimit = 14  # Limit, when a situation is considered a deadend
@@ -62,7 +62,7 @@ class Agent:
 
         print(self.logActionValue)
 
-        if self.safeZone:
+        if self.isSafeZone:
             self.logActionValue[0][1] *= (1 + self.safeZoneBias)  # prefer speed_down, if in a safeZone
             self.logActionValue[0][0] *= (1 - self.safeZoneBias)  # punish speed_up, if in a safeZone
 
@@ -98,12 +98,6 @@ class Agent:
         """
         return self.height > y >= 0 and self.width > x >= 0
 
-    def isValid(self, x, y, coordIgnore, coord):
-        """
-        Combination of isInBound and isNotTaken
-        """
-        return self.isInBound(x, y) and self.isNotTaken(x, y, coordIgnore, coord)
-
     def isNotTaken(self, x, y, coordIgnore, coord):
         """
         Check, whether the position is already taken by an enemy snake or the own
@@ -115,6 +109,12 @@ class Agent:
         :return:
         """
         return self.board[y][x] == 0 and (coordIgnore or [y, x] not in coord)
+
+    def isValid(self, x, y, coordIgnore, coord):
+        """
+        Combination of isInBound and isNotTaken
+        """
+        return self.isInBound(x, y) and self.isNotTaken(x, y, coordIgnore, coord)
 
     def isAbleToJumpInDeadend(self, newAction, x, y, direction, speed, newX, newY):
         """
@@ -213,7 +213,7 @@ class Agent:
                 newSpeed = (speed + i - 1)
                 newX, newY = x + stepVectorX * newSpeed, y + stepVectorY * newSpeed
                 if self.isAbleToJumpInDeadend(initialAction, x, y, direction, newSpeed, newX, newY):
-                    self.logActionValue[0][initialAction] = 500
+                    self.logActionValue[0][initialAction] += self.deadendBias
                 self.jobQueue.put((self.checkchoices, [newX, newY, direction, newSpeed, depth + 1,
                                                        initialAction, newActionCoord, distance - newSpeed, 0,
                                                        checkCounter]))
@@ -261,7 +261,7 @@ class Agent:
                 newcoord.append([newbodyY, newbodyX])
             self.logActionValue[depth][action] += self.value
             if self.isAbleToJumpInDeadend(action, x, y, direction, speed, newheadX, newheadY):
-                self.logActionValue[0][action] = 500
+                self.logActionValue[0][action] += self.deadendBias
             if change == "left":
                 if collCounter <= 0:
                     checkCounter += 1
@@ -271,9 +271,8 @@ class Agent:
                     checkCounter += 1
                 collCounter = max(collCounter + 1, 1)
 
-            # TODO Prüfen, ob effizienter
-            # if distance == 0 and coordIgnore:
-            #   distance = self.getDistance(newheadX, newheadY, self.board, direction, self.width, self.height)[0] + speed
+            if distance == 0 and coordIgnore:
+                distance = self.getDistance(newheadX, newheadY, direction)[0] + speed
 
             self.jobQueue.put((self.checkchoices, [newheadX, newheadY, direction, speed, depth + 1,
                                                    action, newcoord, distance - speed, collCounter, checkCounter]))
@@ -536,8 +535,8 @@ class Agent:
         print("Deadend: ", de)
         self.isDeadend = de < self.deadendLimit
         # TODO testen if Wert > 35 and Distanz zu Gegnern > x: SD + 100, SU - 100
-        self.safeZone = de > self.safeZoneLimit and minimalEnemyDistance(state, own["x"],
-                                                                         own["y"]) > self.safeZoneDistance
+        self.isSafeZone = de > self.safeZoneLimit and getMinimalEnemyDistance(state, own["x"],
+                                                                              own["y"]) > self.safeZoneDistance
 
         # Catches the special case, when the possible moves of an enemy blocks our snake. We will then proceed
         # with the basic board, that doesn´t have the enemies' possible moves included
@@ -571,4 +570,4 @@ class Agent:
             self.board = state["cells"]
 
         indexAction, choices = self.calcAction()
-        return indexAction, choices, de, self.isDeadend, executedJobs, len(self.logActionValue), self.roundNumber, checkD, self.safeZone, self.deadline
+        return indexAction, choices, de, self.isDeadend, executedJobs, len(self.logActionValue), self.roundNumber, checkD, self.isSafeZone, self.deadline

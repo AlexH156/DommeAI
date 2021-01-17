@@ -10,7 +10,7 @@ Um diese Parameter zu ändern, muss im Code in PlaySpe_ed im Aufruf in der letzt
 Für die Benutzung muss nur im Docker-Dashboard der entsprechende Docker gestartet werden oder über die Konsole mit dem Aufruf 'docker run' (in unserem Beispiel also 'docker run Domme') dieser gestartet werden.
 Wenn show=True gesetzt wurde ?
 - APIKEY
-- Show in Docker möglich?
+- Show in Docker: docker cp <container-ID>:/app/playedGame/<game-ID> .
 - BadManner
 
 ## Abhängigkeiten

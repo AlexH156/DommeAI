@@ -1,7 +1,7 @@
 from matplotlib import pyplot, colors
 
 
-def createGUI(state, counter, action, choices, depth, de, sackG, safeZone, timeToDeadline):
+def createGUI(state, counter, action, choices, depth, de, sackG, safeZone, timeToDeadline, gameName):
     """
     TODO
     :param safeZone:
@@ -61,4 +61,5 @@ def createGUI(state, counter, action, choices, depth, de, sackG, safeZone, timeT
                       "\n" + "next move: " + str(action) + "  |  depth: " + str(depth) +
                       " | Jump in T - " + str(5 - ((counter - 2) % 6)))
 
-        pyplot.show(block=False)  # vizualization doesn't block the computations
+        pyplot.savefig(str(gameName) + "/" + str(counter - 1) + ".jpg", format="jpg")
+        # pyplot.show(block=False)  # vizualization doesn't block the computations
