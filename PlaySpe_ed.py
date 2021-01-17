@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-# TODO Handbuch
-# TODO Dokumentation finalisieren
-# TODO Reflektion/Ausblick
-# TODO Softwarearchitektur und -qualität
-# TODO Theoretische Ausarbeitung
-# TODO Rechtschreibung, Grammatik etc
-# TODO Screenshots in den Anhang
 
 import time
 import json

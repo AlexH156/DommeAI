@@ -116,6 +116,8 @@ class Agent:
 
     def isAbleToJumpInDeadend(self, newAction, x, y, direction, speed, newX, newY):
         """
+        Ckecks, whether the snake can jump over another snake into an area, which is not classified as a deadend
+
         :param newAction: the action on that the jump is based
         :param x: the current x coordinate
         :param y: the current y coordinate
