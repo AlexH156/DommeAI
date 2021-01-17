@@ -38,7 +38,7 @@ async def play(show=False, badManner=True):
             mkdir(gameName)
             print("gameName: ", gameName)
         ping = getGamePing()
-        print("Ping", ping)
+        print("Ping: ", ping)
         spe_edAgent = Agent(state["width"], state["height"], ping)
 
         while True:
@@ -52,7 +52,7 @@ async def play(show=False, badManner=True):
                     trashTalk(own)
                 break
 
-            indexAction, choices, de, isDeadend, checks, queueDepth, roundNumber, safeZone, deadline = spe_edAgent.gameStep(state)
+            indexAction, choices, de, isDeadend, queueDepth, roundNumber, safeZone, deadline = spe_edAgent.gameStep(state)
 
             action = choices_actions[indexAction]
             print(">", action)
@@ -62,9 +62,9 @@ async def play(show=False, badManner=True):
 
             if show:
                 seconds = deadline - start
-                createGUI(state, roundNumber, action, choices, queueDepth - 1, de, isDeadend, safeZone, seconds, gameName)
+                createGUI(state, roundNumber, action, choices, queueDepth, de, isDeadend, safeZone, seconds, gameName)
 
             state_json = await websocket.recv()
             state = json.loads(state_json)
 
-asyncio.get_event_loop().run_until_complete(play(show=True, badManner=True))
+asyncio.get_event_loop().run_until_complete(play(show=False, badManner=True))

@@ -14,7 +14,6 @@ class Agent:
     logActionValue: 2D Array, Arrays save evaluation on how many valid actions are possible from that action
                     in the specific layer
     jobQueue: Queue for every next Step that has to be checked whether it is valid or not
-    countCDCalls: counts the number of executed jobs
     gamma: factor to discount valid actions based on their depth
     value: base value for every valid action
     deadline: later UTC time, server deadline until he needs the action answer
@@ -61,8 +60,6 @@ class Agent:
                  choices: list of values, one value for every action
         """
         choices = [0, 0, 0, 0, 0]
-
-        print(self.logActionValue)  # Debugging
 
         if self.isSafeZone:
             self.logActionValue[0][1] *= (1 + self.safeZoneBias)  # prefer speed_down, if in a safeZone
@@ -133,7 +130,6 @@ class Agent:
                overSnake(x, y, self.board, direction, speed) and not self.checkDeadend(newX, newY, direction, 1) < 14
 
     def checkFront(self, x, y, direction, speed, depth, initialAction, coord, distance, checkCounter):
-        # TODO Kommentare @Wiggi
         """
         Check if the actions slow-down, change-nothing and speed-up are possible. If an action is possible,
         add the value for the current depth to logActionValue and add checkChoices to the jobQueue
@@ -523,7 +519,6 @@ class Agent:
         isJumping = self.roundNumber % 6 == 0
         self.logActionValue = [[0, 0, 0, 0, 0]]
         self.deadline = dp.parse(state["deadline"]).timestamp()
-        executedJobs = 0  # Debugging
 
         # create a board, which includes every next move of the active enemies
         # also includes moves leading to a potential death of an enemy
@@ -559,7 +554,6 @@ class Agent:
 
             # works on objects in the queue until it is either empty or the deadline is close
             while not self.jobQueue.empty():
-                executedJobs += 1  # Debugging
                 f, args = self.jobQueue.get()
                 f(*args)
 
@@ -570,5 +564,5 @@ class Agent:
             self.board = state["cells"]
 
         indexAction, choices = self.calcAction()
-        return indexAction, choices, de, self.isDeadend, executedJobs, len(self.logActionValue), self.roundNumber, \
+        return indexAction, choices, de, self.isDeadend, len(self.logActionValue) - 1, self.roundNumber, \
                self.isSafeZone, self.deadline
