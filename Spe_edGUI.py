@@ -1,18 +1,20 @@
 from matplotlib import pyplot, colors
 
 
-def createGUI(state, counter, action, choices, depth, de, sackG, safeZone, timeToDeadline, gameName):
+def createGUI(state, counter, action, choices, depth, de, isDeadend, isSafeZone, timeToDeadline, gameName):
     """
-    TODO
-    :param safeZone:
-    :param timeToDeadline:
-    :param state:
-    :param counter:
-    :param action:
-    :param choices:
-    :param depth:
-    :param de:
-    :param sackG:
+    Saves a *.jpg of the board with additional meta-data per Round in the previously created folder gameName
+
+    :param state: state, used to get the board as well as player-information
+    :param counter: the round-number
+    :param action: what action the snake did on this state
+    :param choices: the values of each action
+    :param depth: the depth the snake reached with its calculations
+    :param de: the "deadend-value"
+    :param isDeadend: bool, if its in a dead end
+    :param isSafeZone: bool, if the enemies are far away and it has enough space around itself
+    :param timeToDeadline: the time for this round
+    :param gameName: the name of the game where the pictures should be saved
     """
     # information about the current state of the player
     youx = str(state["players"][str(state["you"])]["x"])
@@ -33,7 +35,6 @@ def createGUI(state, counter, action, choices, depth, de, sackG, safeZone, timeT
     gameColors = ["grey", "white", "green", "blue", "orange", "red", "cyan", "magenta"]
 
     # replace the heads of the players with "-1" for the visualization
-    # TODO: evtl nur aktive Spieler / oder zwischen aktiven und toten Köpfen unterscheiden
     for p in range(1, (playerCount + 1)):
         try:
             board[state["players"][str(p)]["y"]][state["players"][str(p)]["x"]] = -1
@@ -62,4 +63,5 @@ def createGUI(state, counter, action, choices, depth, de, sackG, safeZone, timeT
                       " | Jump in T - " + str(5 - ((counter - 2) % 6)))
 
         pyplot.savefig(str(gameName) + "/" + str(counter - 1) + ".jpg", format="jpg")
-        # pyplot.show(block=False)  # vizualization doesn't block the computations
+        pyplot.close()
+        # pyplot.show(block=False)  # if not commentated it shows the GUI directly (tested in PyCharm Professional)

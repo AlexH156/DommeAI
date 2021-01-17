@@ -1,8 +1,4 @@
-import time
 from queue import Queue
-
-import numpy as np
-import dateutil.parser as dp
 from AgentUtils import *
 
 
@@ -47,7 +43,7 @@ class Agent:
         self.isSafeZone = False
         self.counter = 0
         self.deadendBias = 500
-        self.safeZoneBias = 0.1  # Bias pro speed_down and contra speed_up if in a safeZone
+        self.safeZoneBias = 0.5  # Bias pro speed_down and contra speed_up if in a safeZone
         self.deadendLimit = 14  # Limit, when a situation is considered a deadend
         self.safeZoneLimit = 35  # Limit, when a situation could be considered a safeZone
         self.safeZoneDistance = 20  # Limit, when a possible safeZone is called
@@ -61,7 +57,7 @@ class Agent:
         """
         choices = [0, 0, 0, 0, 0]
 
-        print(self.logActionValue)
+        print(self.logActionValue)  # Debugging
 
         if self.isSafeZone:
             self.logActionValue[0][1] *= (1 + self.safeZoneBias)  # prefer speed_down, if in a safeZone
@@ -86,7 +82,6 @@ class Agent:
             choices[i] = -1
 
         # Choose the best action
-        print(choices)
         indexAction = choices.index(max(choices))
 
         return indexAction, choices
@@ -113,7 +108,7 @@ class Agent:
 
     def isValid(self, x, y, coordIgnore, coord):
         """
-        Combination of isInBound and isNotTaken
+        Combination of isInBound and isNotTaken for better visualisation
         """
         return self.isInBound(x, y) and self.isNotTaken(x, y, coordIgnore, coord)
 
@@ -132,11 +127,11 @@ class Agent:
         return self.isDeadend and self.logActionValue[0][newAction] == 1 and \
                overSnake(x, y, self.board, direction, speed) and not self.checkDeadend(newX, newY, direction, 1) < 14
 
-    def checkFront(self, x, y, direction, speed, depth, initialAction, coord, distance, collCounter, checkCounter):
+    def checkFront(self, x, y, direction, speed, depth, initialAction, coord, distance, checkCounter):
+        # TODO Kommentare @Wiggi
         """
-        #TODO
         Check if the actions slow-down, change-nothing and speed-up are possible. If an action is possible,
-        add the value for the current depth to logActionValue and add all 5 sub-actions to the Queue
+        add the value for the current depth to logActionValue and add checkChoices to the jobQueue
 
         :param x: the coordinate x of the snakes' head
         :param y: the coordinate y of the snakes' head
@@ -146,7 +141,6 @@ class Agent:
         :param initialAction: either a given action (0 to 4) or None. Then initialise is for every case (SD, CN ,SU)
         :param coord: a list of coordinates, where the snake already was. Used to prevent hitting itself
         :param distance: the number of free fields in the current direction
-        :param collCounter: number of consecutive turns in a specific direction
         :param checkCounter: number of turns in general
         :return: returns if move is not possible and therefore CN/SU are not possible as well
         """
@@ -215,7 +209,7 @@ class Agent:
                 newX, newY = x + stepVectorX * newSpeed, y + stepVectorY * newSpeed
                 if self.isAbleToJumpInDeadend(initialAction, x, y, direction, newSpeed, newX, newY):
                     self.logActionValue[0][initialAction] += self.deadendBias
-                self.jobQueue.put((self.checkchoices, [newX, newY, direction, newSpeed, depth + 1,
+                self.jobQueue.put((self.checkChoices, [newX, newY, direction, newSpeed, depth + 1,
                                                        initialAction, newActionCoord, distance - newSpeed, 0,
                                                        checkCounter]))
 
@@ -236,7 +230,7 @@ class Agent:
         :param collCounter: number of consecutive turns in a specific direction
         :param checkCounter: number of turns in general
         :param change: Either "left" or "right". Determines which direction should be checked
-        :return: returns if move is not possible and therefore CN/SU are not possible as well
+        :return: returns if move is not possible
         """
         coordIgnore = checkCounter < 2  # True, if coords doesn't have to be checked, because snake didn't turn twice
         direction = getNewDirection(direction, change)
@@ -244,20 +238,18 @@ class Agent:
         newcoord = coord[:]
 
         newheadY, newheadX = getNewPos(x, y, speed, direction)
-        if (change == "left" and collCounter != -2 or change == "right" and collCounter != 2) and self.isValid(newheadX,
-                                                                                                               newheadY,
-                                                                                                               coordIgnore,
-                                                                                                               coord):
+        if (change == "left" and collCounter != -2 or change == "right" and collCounter != 2) \
+                and self.isValid(newheadX, newheadY, coordIgnore, coord):
             newcoord.append([newheadY, newheadX])
             for i in range(1, speed):
                 if isJumping:  # If it is the sixth round, skip the occuring gap
                     newbodyY, newbodyX = getNewPos(x, y, 1, direction)
-                    if self.board[newbodyY][newbodyX] != 0 or (not coordIgnore and [newbodyY, newbodyX] in coord):
+                    if not self.isValid(newbodyX, newbodyY, coordIgnore, coord):
                         return
                     newcoord.append([newbodyY, newbodyX])
                     break
                 newbodyY, newbodyX = getNewPos(x, y, i, direction)
-                if self.board[newbodyY][newbodyX] != 0 or (not coordIgnore and [newbodyY, newbodyX] in coord):
+                if not self.isValid(newbodyX, newbodyY, coordIgnore, coord):
                     return
                 newcoord.append([newbodyY, newbodyX])
             self.logActionValue[depth][action] += self.value
@@ -275,7 +267,7 @@ class Agent:
             if distance == 0 and coordIgnore:
                 distance = self.getDistance(newheadX, newheadY, direction)[0] + speed
 
-            self.jobQueue.put((self.checkchoices, [newheadX, newheadY, direction, speed, depth + 1,
+            self.jobQueue.put((self.checkChoices, [newheadX, newheadY, direction, speed, depth + 1,
                                                    action, newcoord, distance - speed, collCounter, checkCounter]))
 
     def constructEnemyBoard(self, state, isJumping):
@@ -380,7 +372,7 @@ class Agent:
                 dis += 1
         return dis, x, y
 
-    def checkchoices(self, x, y, direction, speed, depth, action, coord, distance,
+    def checkChoices(self, x, y, direction, speed, depth, action, coord, distance,
                      collCounter, checkCounter):
         """
         First, check if less than a second to the deadline is left. If so, drop the Queue and return
@@ -405,7 +397,7 @@ class Agent:
         self.checkNewLayer(depth)
 
         # Check-SD/CN/SU
-        self.checkFront(x, y, direction, speed, depth, action, coord, distance, collCounter, checkCounter)
+        self.checkFront(x, y, direction, speed, depth, action, coord, distance, checkCounter)
 
         # Check-Left
         self.checkLeftorRight(x, y, direction, speed, depth, action, coord, 0, collCounter, checkCounter, "left")
@@ -416,6 +408,7 @@ class Agent:
     def freeLR(self, x, y, direction):
         """
         checks, whether the fields left and right of a specific coordinate and direction are blocked
+
         :param x: x coordinate
         :param y: y coordinate
         :param direction: direction of player
@@ -439,6 +432,7 @@ class Agent:
         computes the maximum distance to the left or right of specific coordinates and a specific direction
         if the last coordinates in a direction does not allow for further moves,
         it continues with the coordinates and distance to the coordinates before that
+
         :param x: x coordinates
         :param y: y coordinates
         :param direction: direction of player
@@ -464,6 +458,7 @@ class Agent:
         if the last coordinate in the direction does not allow for further moves,
         it continues with the coordinates before that
         If the T distance is bigger than the given limitIndex, return it
+
         :param x: x coordinate
         :param y: y coordinate
         :param direction: direction of player
@@ -487,6 +482,7 @@ class Agent:
     def checkNewLayer(self, depth):
         """
         If logActionValue is not longer than the depth, append it, and update some variables for the new layer
+
         :param depth: the level on which the snake checks the possible moves
         """
         if not len(self.logActionValue) > depth:
@@ -496,7 +492,7 @@ class Agent:
 
     def checkDeadline(self):
         """
-        :return: Drop the Queue and return, if less than a second remains to the deadline
+        :return: Drop the Queue and return, if less than the timePuffer remains to the deadline
                 and he checked more than 4 layers
         """
         if time.time() + 1 > self.deadline:
@@ -508,9 +504,11 @@ class Agent:
 
     def gameStep(self, state):
         """
-        # TODO
-        :param state:
-        :return:
+        Will be called in every step to initialize different variables as well as start the process of checking every
+        possible action
+
+        :param state: given state by the server
+        :return: returns the action that should be played as well as other variables that may be needed for the GUI
         """
         # Initialization
         depth = 0
@@ -520,7 +518,7 @@ class Agent:
         isJumping = self.roundNumber % 6 == 0
         self.logActionValue = [[0, 0, 0, 0, 0]]
         self.deadline = dp.parse(state["deadline"]).timestamp()
-        executedJobs, checkD = 0, 0  # Debugging
+        executedJobs = 0  # Debugging
 
         # create a board, which includes every next move of the active enemies
         # also includes moves leading to a potential death of an enemy
@@ -528,14 +526,9 @@ class Agent:
 
         own = state["players"][str(state["you"])]
 
-        # Debugging:
-        LR = self.maxLR(own["x"], own["y"], own["direction"])
-        print("LR: ", LR)
-
         de = self.checkDeadend(own["x"], own["y"], own["direction"], 0)
-        print("Deadend: ", de)
+
         self.isDeadend = de < self.deadendLimit
-        # TODO testen if Wert > 35 and Distanz zu Gegnern > x: SD + 100, SU - 100
         self.isSafeZone = de > self.safeZoneLimit and getMinimalEnemyDistance(state, own["x"],
                                                                               own["y"]) > self.safeZoneDistance
 
@@ -547,6 +540,7 @@ class Agent:
             leftDistance, lx, ly = self.getDistance(own["x"], own["y"], getNewDirection(own["direction"], "left"))
             rightDistance, rx, ry = self.getDistance(own["x"], own["y"], getNewDirection(own["direction"], "right"))
 
+            # check-sd/cn/su
             self.checkFront(own["x"], own["y"], own["direction"], own["speed"], depth,
                             None, [], straightDistance, 0, 0)
 
@@ -558,17 +552,18 @@ class Agent:
             self.checkLeftorRight(own["x"], own["y"], own["direction"], own["speed"], depth,
                                   4, [], rightDistance, 0, 0, "right")
 
-            # works on objects in the queue until it is either empty or the deadline is just one second away
+            # works on objects in the queue until it is either empty or the deadline is close
             while not self.jobQueue.empty():
                 executedJobs += 1  # Debugging
                 f, args = self.jobQueue.get()
                 f(*args)
 
-            if len(self.logActionValue) > 0:
+            if len(self.logActionValue) > 1:
                 break
 
             # if there are no possible move, when the first moves of the enemies are accounted for, they are discarded
             self.board = state["cells"]
 
         indexAction, choices = self.calcAction()
-        return indexAction, choices, de, self.isDeadend, executedJobs, len(self.logActionValue), self.roundNumber, checkD, self.isSafeZone, self.deadline
+        return indexAction, choices, de, self.isDeadend, executedJobs, len(self.logActionValue), self.roundNumber, \
+               self.isSafeZone, self.deadline

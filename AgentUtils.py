@@ -1,4 +1,7 @@
 import random
+import dateutil.parser as dp
+import requests
+import time
 
 
 def getNewDirection(direction, change):
@@ -61,7 +64,6 @@ def overSnake(x, y, board, direction, speed):
     for i in range(2, speed):
         newy, newx = getNewPos(x, y, i, direction)
         if board[newy][newx] != 0:
-            # print("Über Schlange" + str(newy) + " " + str(newx))
             return True
     return False
 
@@ -86,7 +88,6 @@ def getMinimalEnemyDistance(state, x, y):
 
     if not dis:
         return 0
-    print("Minimale Distanz: ", min(dis))
     return min(dis)
 
 
@@ -119,7 +120,8 @@ def discardImpasse(px, py, dis, direction):
 
 
 def trashTalk(own):
-    """ Lines to print when a game is won or not
+    """
+    Lines to print when a game is won or not
 
     :param own: own Player
     """

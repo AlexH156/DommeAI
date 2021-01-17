@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
-# TODO imports prüfen (numpy scipy)
 # TODO Handbuch
-# TODO Dateispeicherort prüfen
-import time
-from datetime import datetime
-import json
-from os import mkdir
+# TODO Dokumentation finalisieren
+# TODO Reflektion/Ausblick
+# TODO Softwarearchitektur und -qualität
+# TODO Theoretische Ausarbeitung
+# TODO Rechtschreibung, Grammatik etc
+# TODO Screenshots in den Anhang
 
-import dateutil.parser as dp
-import requests
+import time
+import json
 import websockets
-from Agent import Agent
-from AgentUtils import trashTalk
 import asyncio
+from os import mkdir
+from Agent import Agent
+from AgentUtils import trashTalk, getGamePing
 from Spe_edGUI import createGUI
 
 
@@ -36,15 +37,10 @@ async def play(show=False, badManner=True):
             gameName = state["deadline"].replace(":","-")
             mkdir(gameName)
 
-        spe_edAgent = Agent(state["width"], state["height"])
         while True:
-            start = time.time()
-            timeAPI = requests.get("https://msoll.de/spe_ed_time")
-            serverTime = dp.parse(timeAPI.json()["time"]).timestamp() + timeAPI.json()["milliseconds"]/1000
-            ping = serverTime-start
-            print("Ping", ping)
-            print("<", state)
-            print("Startzeit: " + str(datetime.utcnow()))  # Debugging
+            # print("<", state)
+            if show:
+                start = time.time()
 
             own = state["players"][str(state["you"])]
             if not state["running"] or not own["active"]:
@@ -52,19 +48,16 @@ async def play(show=False, badManner=True):
                     trashTalk(own)
                 break
 
-            indexAction, choices, de, isDeadend, checks, queueDepth, roundNumber, checkD, safeZone, deadline = spe_edAgent.gameStep(state)
+            indexAction, choices, de, isDeadend, checks, queueDepth, roundNumber, safeZone, deadline = spe_edAgent.gameStep(state)
 
-            print("Endzeit: " + str(datetime.utcnow()))  # Debugging
-            print("\n", checks, "davon checkD:", checkD)  # Debugging
             action = choices_actions[indexAction]
             print(">", action)
-
-            seconds = deadline - start
 
             action_json = json.dumps({"action": action})
             await websocket.send(action_json)
 
             if show:
+                seconds = deadline - start
                 createGUI(state, roundNumber, action, choices, queueDepth - 1, de, isDeadend, safeZone, seconds, gameName)
 
             state_json = await websocket.recv()
