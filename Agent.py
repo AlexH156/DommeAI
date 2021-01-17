@@ -35,7 +35,6 @@ class Agent:
         self.roundNumber = 0
         self.logActionValue = []
         self.jobQueue = Queue()
-        self.countCDCalls = 0  # Debugging
         self.value = 1
         self.deadline = 0
         self.board = []
