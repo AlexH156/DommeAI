@@ -153,3 +153,14 @@ def getStepVector(direction):
         return 0, 1
     else:
         return 0, -1
+
+
+def getGamePing():
+    start = time.time()
+    timeAPI = requests.get("https://msoll.de/spe_ed_time")
+    serverTime = dp.parse(timeAPI.json()["time"]).timestamp() + timeAPI.json()["milliseconds"] / 1000
+    ping = serverTime - start
+    multiplier = 1
+    if ping < 0:
+        multiplier = -1
+    return min(abs(ping), 0.5) * multiplier

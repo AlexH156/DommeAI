@@ -22,26 +22,31 @@ class Agent:
 
     """
 
-    def __init__(self, width, height):
+    def __init__(self, width, height, ping):
         """
         Initialise the following variables at the start of a game
 
         :param width: the width of the board
         :param height: the height of the board
+        :param ping: difference between server time and runtime
         """
         self.width = width
         self.height = height
+        self.ping = ping
         self.roundNumber = 0
         self.logActionValue = []
         self.jobQueue = Queue()
         self.countCDCalls = 0  # Debugging
-        self.gamma = 0.5  # Discount factor for every new Layer
         self.value = 1
         self.deadline = 0
         self.board = []
         self.isDeadend = False
         self.isSafeZone = False
         self.counter = 0
+
+        # Configuration Values:
+        self.timePuffer = 0.3
+        self.gamma = 0.5  # Discount factor for every new Layer
         self.deadendBias = 500
         self.safeZoneBias = 0.5  # Bias pro speed_down and contra speed_up if in a safeZone
         self.deadendLimit = 14  # Limit, when a situation is considered a deadend
@@ -270,81 +275,6 @@ class Agent:
             self.jobQueue.put((self.checkChoices, [newheadX, newheadY, direction, speed, depth + 1,
                                                    action, newcoord, distance - speed, collCounter, checkCounter]))
 
-    def constructEnemyBoard(self, state, isJumping):
-        """Calculates the Board with every possible step of the enemies, to dodge an overlap in the next
-        action and to take the enemy steps into account for estimating the best action
-
-        :param state: the current state
-        :param isJumping: is the snake jumping in this round
-        :return: Return a board that has every possible action from active enemies registered
-        """
-        enemyBoard = [row[:] for row in state["cells"]]
-        # check every active player
-        for enemy in range(1, len(state["players"]) + 1):
-            enemyObject = state["players"][str(enemy)]
-            if enemyObject["active"] and not state["you"] == enemy:
-                # first check, whether it would survive a speed_down, register it
-                # then check change_nothing and register it
-                # finally check speed_up and register that
-                # (special case if it is a jump round)
-                newHeadPosList = []
-                currDirection = enemyObject["direction"]
-                speedNotTen = 1
-                if enemyObject["speed"] % 10 == 0:
-                    newSpeed = 10
-                    speedNotTen = 0
-                else:
-                    newSpeed = enemyObject["speed"] + 1
-
-                newHeadPosList.append(getNewPos(enemyObject["x"], enemyObject["y"], newSpeed, currDirection))
-
-                newDirection = getNewDirection(currDirection, "left")
-                newHeadPosList.append(getNewPos(enemyObject["x"], enemyObject["y"], enemyObject["speed"], newDirection))
-
-                newDirection = getNewDirection(currDirection, "right")
-                newHeadPosList.append(getNewPos(enemyObject["x"], enemyObject["y"], enemyObject["speed"], newDirection))
-
-                if isJumping:
-                    pathList = [np.zeros(newSpeed, dtype=np.int32)]
-                    pathList[0][0] = 7
-                    pathList[0][-1] = 7
-                    pathList[0][-2] = 7
-
-                    pathList.append(np.zeros(newSpeed - 1 * speedNotTen, dtype=np.int32))
-                    pathList[1][0] = 7
-                    pathList[1][-1] = 7
-
-                    if newSpeed >= 3:
-                        pathList[0][-3] = 7
-                else:
-                    pathList = [np.full(newSpeed, 7, dtype=np.int32),
-                                np.full((newSpeed - 1 * speedNotTen), 7, dtype=np.int32)]
-
-                pathNum = 0
-                for newHeadPos in newHeadPosList:
-                    stepVector = [newHeadPos[0] - enemyObject["y"], newHeadPos[1] - enemyObject["x"]]
-
-                    if stepVector[1] == 0:
-                        stepVector[0] = stepVector[0] / abs(stepVector[0])
-                        boundHelp = (stepVector[0] + 1) * 0.5
-                        numberSteps = min(abs(boundHelp * (self.height - 1) - enemyObject["y"]),
-                                          newSpeed - 1 * pathNum * speedNotTen)
-                    else:
-                        stepVector[1] = stepVector[1] / abs(stepVector[1])
-                        boundHelp = (stepVector[1] + 1) * 0.5
-                        numberSteps = min(abs(boundHelp * (self.width - 1) - enemyObject["x"]),
-                                          newSpeed - 1 * pathNum * speedNotTen)
-
-                    chosenPath = pathList[pathNum]
-                    numberSteps = int(numberSteps)
-                    for step in range(1, numberSteps + 1):
-                        stepX = enemyObject["x"] + stepVector[1] * step
-                        stepY = enemyObject["y"] + stepVector[0] * step
-                        enemyBoard[int(stepY)][int(stepX)] = max(chosenPath[step - 1],
-                                                                 enemyBoard[int(stepY)][int(stepX)])
-                    pathNum = 1
-        return enemyBoard
-
     def getDistance(self, x, y, direction):
         """Gives the distance of free fields in a given directory from a given point
 
@@ -495,12 +425,87 @@ class Agent:
         :return: Drop the Queue and return, if less than the timePuffer remains to the deadline
                 and he checked more than 4 layers
         """
-        if time.time() + 1 > self.deadline:
+        if time.time() + self.timePuffer + self.ping > self.deadline:
             if len(self.logActionValue) > 4:
                 with self.jobQueue.mutex:
                     self.jobQueue.queue.clear()
                 return True
         return False
+
+    def constructEnemyBoard(self, state, isJumping):
+        """Calculates the Board with every possible step of the enemies, to dodge an overlap in the next
+        action and to take the enemy steps into account for estimating the best action
+
+        :param state: the current state
+        :param isJumping: is the snake jumping in this round
+        :return: Return a board that has every possible action from active enemies registered
+        """
+        enemyBoard = [row[:] for row in state["cells"]]
+        # check every active player
+        for enemy in range(1, len(state["players"]) + 1):
+            enemyObject = state["players"][str(enemy)]
+            if enemyObject["active"] and not state["you"] == enemy:
+                # first check, whether it would survive a speed_down, register it
+                # then check change_nothing and register it
+                # finally check speed_up and register that
+                # (special case if it is a jump round)
+                newHeadPosList = []
+                currDirection = enemyObject["direction"]
+                speedNotTen = 1
+                if enemyObject["speed"] % 10 == 0:
+                    newSpeed = 10
+                    speedNotTen = 0
+                else:
+                    newSpeed = enemyObject["speed"] + 1
+
+                newHeadPosList.append(getNewPos(enemyObject["x"], enemyObject["y"], newSpeed, currDirection))
+
+                newDirection = getNewDirection(currDirection, "left")
+                newHeadPosList.append(getNewPos(enemyObject["x"], enemyObject["y"], enemyObject["speed"], newDirection))
+
+                newDirection = getNewDirection(currDirection, "right")
+                newHeadPosList.append(getNewPos(enemyObject["x"], enemyObject["y"], enemyObject["speed"], newDirection))
+
+                if isJumping:
+                    pathListFront = [0] * newSpeed
+                    pathListFront[0] = 7
+                    pathListFront[-1] = 7
+                    pathListFront[-2] = 7
+
+                    pathListSides = [0] * (newSpeed - 1 * speedNotTen)
+                    pathListSides[0] = 7
+                    pathListSides[-1] = 7
+
+                    if newSpeed >= 3:
+                        pathListFront[-3] = 7
+                else:
+                    pathListFront = [7] * newSpeed
+                    pathListSides = [7] * (newSpeed - 1 * speedNotTen)
+
+                pathNum = 0
+                for newHeadPos in newHeadPosList:
+                    stepVector = [newHeadPos[0] - enemyObject["y"], newHeadPos[1] - enemyObject["x"]]
+
+                    if stepVector[1] == 0:
+                        stepVector[0] = stepVector[0] / abs(stepVector[0])
+                        boundHelp = (stepVector[0] + 1) * 0.5
+                        numberSteps = min(abs(boundHelp * (self.height - 1) - enemyObject["y"]),
+                                          newSpeed - 1 * pathNum * speedNotTen)
+                    else:
+                        stepVector[1] = stepVector[1] / abs(stepVector[1])
+                        boundHelp = (stepVector[1] + 1) * 0.5
+                        numberSteps = min(abs(boundHelp * (self.width - 1) - enemyObject["x"]),
+                                          newSpeed - 1 * pathNum * speedNotTen)
+
+                    chosenPath = [pathListFront, pathListSides][pathNum]
+                    numberSteps = int(numberSteps)
+                    for step in range(1, numberSteps + 1):
+                        stepX = enemyObject["x"] + stepVector[1] * step
+                        stepY = enemyObject["y"] + stepVector[0] * step
+                        enemyBoard[int(stepY)][int(stepX)] = max(chosenPath[step - 1],
+                                                                 enemyBoard[int(stepY)][int(stepX)])
+                    pathNum = 1
+        return enemyBoard
 
     def gameStep(self, state):
         """

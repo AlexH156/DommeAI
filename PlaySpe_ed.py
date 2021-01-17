@@ -36,6 +36,10 @@ async def play(show=False, badManner=True):
         if show:
             gameName = state["deadline"].replace(":","-")
             mkdir(gameName)
+            print("gameName: ", gameName)
+        ping = getGamePing()
+        print("Ping", ping)
+        spe_edAgent = Agent(state["width"], state["height"], ping)
 
         while True:
             # print("<", state)
