@@ -1,5 +1,6 @@
 <img src="https://i.ibb.co/vL7D45R/DommeV3.png" alt="drawing" width="100"/>
 
+[Spiel auf dem Testserver am 17.01.2021 (Video inklusive GUI) - Streamable](https://streamable.com/hgmf9w)
 # InformatiCup-2021 Handbuch
 Dieses Handbuch beschreibt die Installation, sowie die Benutzung der Software inklusive der Erweiterungsparameter show und badManner.  
 ## Setup
